@@ -1440,30 +1440,55 @@ class StashApp {
   }
 
   async toggleArchive() {
-    if (!this.currentSave) return;
+    if (!this.currentSave) {
+      console.log('toggleArchive: No current save');
+      return;
+    }
 
     const newValue = !this.currentSave.is_archived;
-    await this.supabase
+    console.log('toggleArchive:', this.currentSave.id, 'to', newValue);
+
+    const { error } = await this.supabase
       .from('saves')
       .update({ is_archived: newValue })
       .eq('id', this.currentSave.id);
 
+    if (error) {
+      console.error('Error toggling archive:', error);
+      this.showToast('Failed to archive', 'error');
+      return;
+    }
+
     this.currentSave.is_archived = newValue;
+    document.getElementById('archive-btn').classList.toggle('active', newValue);
+    this.showToast(newValue ? 'Archived' : 'Unarchived', 'success');
     this.loadSaves();
     if (newValue) this.closeReadingPane();
   }
 
   async toggleFavorite() {
-    if (!this.currentSave) return;
+    if (!this.currentSave) {
+      console.log('toggleFavorite: No current save');
+      return;
+    }
 
     const newValue = !this.currentSave.is_favorite;
-    await this.supabase
+    console.log('toggleFavorite:', this.currentSave.id, 'to', newValue);
+
+    const { error } = await this.supabase
       .from('saves')
       .update({ is_favorite: newValue })
       .eq('id', this.currentSave.id);
 
+    if (error) {
+      console.error('Error toggling favorite:', error);
+      this.showToast('Failed to favorite', 'error');
+      return;
+    }
+
     this.currentSave.is_favorite = newValue;
     document.getElementById('favorite-btn').classList.toggle('active', newValue);
+    this.showToast(newValue ? 'Added to favorites' : 'Removed from favorites', 'success');
   }
 
   async deleteSave() {
