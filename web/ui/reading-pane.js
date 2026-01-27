@@ -1,0 +1,343 @@
+// Reading Pane UI module for Stash app
+// Handles the reading pane display and interactions
+
+import { appState, setCurrentSave } from '../lib/state.js';
+import { escapeHtml, renderMarkdown } from '../lib/utils.js';
+import { stopAudio, initAudio } from '../services/audio.js';
+
+/**
+ * Open the reading pane with a save
+ * @param {Object} save - The save object to display
+ */
+export function openReadingPane(save) {
+  setCurrentSave(save);
+  const pane = document.getElementById('reading-pane');
+
+  // Stop any existing audio
+  stopAudio();
+
+  // Set title and meta
+  const titleEl = document.getElementById('reading-title');
+  const metaEl = document.getElementById('reading-meta');
+
+  if (titleEl) titleEl.textContent = save.title || 'Untitled';
+  if (metaEl) {
+    metaEl.innerHTML = `
+      ${save.site_name || ''} ${save.author ? `· ${save.author}` : ''} · ${new Date(save.created_at).toLocaleDateString()}
+    `;
+  }
+
+  // Handle audio player visibility
+  handleAudioVisibility(save);
+
+  // Render content based on type
+  const bodyEl = document.getElementById('reading-body');
+  if (bodyEl) {
+    if (save.highlight) {
+      bodyEl.innerHTML = renderHighlightContent(save);
+    } else if (save.content_type === 'podcast') {
+      bodyEl.innerHTML = renderPodcastContent(save);
+    } else if (save.content_type === 'book') {
+      bodyEl.innerHTML = renderBookContent(save);
+    } else {
+      bodyEl.innerHTML = renderArticleContent(save);
+    }
+  }
+
+  // Set original link
+  const originalBtn = document.getElementById('open-original-btn');
+  if (originalBtn) originalBtn.href = save.url || '#';
+
+  // Update button states
+  const archiveBtn = document.getElementById('archive-btn');
+  const favoriteBtn = document.getElementById('favorite-btn');
+  if (archiveBtn) archiveBtn.classList.toggle('active', save.is_archived);
+  if (favoriteBtn) favoriteBtn.classList.toggle('active', save.is_favorite);
+
+  // Show pane with animation
+  if (pane) {
+    pane.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      pane.classList.add('open');
+    });
+  }
+}
+
+/**
+ * Close the reading pane
+ */
+export function closeReadingPane() {
+  const pane = document.getElementById('reading-pane');
+  if (!pane) return;
+
+  pane.classList.remove('open');
+  stopAudio();
+
+  // Reset progress bar
+  const progressFill = document.getElementById('reading-progress-fill');
+  if (progressFill) progressFill.style.width = '0%';
+
+  // Wait for animation before hiding
+  setTimeout(() => {
+    if (!pane.classList.contains('open')) {
+      pane.classList.add('hidden');
+    }
+  }, 300);
+
+  setCurrentSave(null);
+}
+
+/**
+ * Update reading progress bar based on scroll position
+ */
+export function updateReadingProgress() {
+  const readingContent = document.getElementById('reading-content');
+  const progressFill = document.getElementById('reading-progress-fill');
+
+  if (!readingContent || !progressFill) return;
+
+  const scrollTop = readingContent.scrollTop;
+  const scrollHeight = readingContent.scrollHeight - readingContent.clientHeight;
+
+  if (scrollHeight > 0) {
+    const progress = (scrollTop / scrollHeight) * 100;
+    progressFill.style.width = `${Math.min(progress, 100)}%`;
+  }
+}
+
+/**
+ * Check if reading pane is open
+ * @returns {boolean}
+ */
+export function isOpen() {
+  const pane = document.getElementById('reading-pane');
+  return pane && pane.classList.contains('open');
+}
+
+/**
+ * Get current save being displayed
+ * @returns {Object|null}
+ */
+export function getCurrentSave() {
+  return appState.currentSave;
+}
+
+// ==================== Private Helpers ====================
+
+function handleAudioVisibility(save) {
+  const audioPlayer = document.getElementById('audio-player');
+  const audioGenerating = document.getElementById('audio-generating');
+
+  if (!audioPlayer || !audioGenerating) return;
+
+  if (save.audio_url) {
+    // Audio is ready - show player
+    audioPlayer.classList.remove('hidden');
+    audioGenerating.classList.add('hidden');
+    initAudio(save.audio_url);
+  } else if (save.content_type === 'podcast' || save.content_type === 'book') {
+    // Podcasts and books don't need TTS audio
+    audioPlayer.classList.add('hidden');
+    audioGenerating.classList.add('hidden');
+  } else if (save.content && save.content.length > 100 && !save.highlight) {
+    // Content exists but no audio yet - show generating indicator
+    audioPlayer.classList.add('hidden');
+    audioGenerating.classList.remove('hidden');
+  } else {
+    // No audio applicable (highlights, short content)
+    audioPlayer.classList.add('hidden');
+    audioGenerating.classList.add('hidden');
+  }
+}
+
+function renderHighlightContent(save) {
+  return `
+    <blockquote style="font-style: italic; background: #fef3c7; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+      "${escapeHtml(save.highlight)}"
+    </blockquote>
+    <p><a href="${save.url}" target="_blank" style="color: var(--primary);">View original →</a></p>
+  `;
+}
+
+function renderPodcastContent(save) {
+  const keyPoints = save.podcast_metadata?.key_points;
+  const isProcessed = save.podcast_metadata?.processed;
+
+  let html = '';
+
+  // AI enrich button
+  html += renderAIEnrichButton(isProcessed);
+
+  // Key points
+  if (keyPoints && keyPoints.length > 0) {
+    html += `
+      <div class="podcast-key-points" style="margin-bottom: 20px;">
+        <h4>Key Points</h4>
+        <ul>
+          ${keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  // Transcript
+  const content = save.content || save.excerpt || 'No content available.';
+  html += renderMarkdown(content);
+
+  return html;
+}
+
+function renderBookContent(save) {
+  let html = '';
+  let bookData = {};
+
+  try {
+    bookData = JSON.parse(save.content || '{}');
+  } catch (e) {
+    bookData = { description: save.content || save.excerpt || '' };
+  }
+
+  // AI enrich button
+  const hasKeyPoints = save.ai_metadata?.key_points?.length > 0;
+  html += renderAIEnrichButton(hasKeyPoints);
+
+  // AI-generated key points
+  if (save.ai_metadata?.key_points?.length > 0) {
+    html += renderKeyPoints(save.ai_metadata.key_points);
+  }
+
+  // Book metadata
+  const metadata = bookData.metadata || {};
+  if (metadata.yearRead || metadata.pageCount || metadata.categories) {
+    html += renderBookMetadata(metadata);
+  }
+
+  // User notes
+  if (bookData.notes || metadata.userNotes) {
+    const notes = bookData.notes || metadata.userNotes;
+    html += `
+      <div class="book-notes" style="margin-bottom: 24px; padding: 16px; background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--primary); border-radius: 0 var(--radius) var(--radius) 0;">
+        <h4 style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--primary);">Your Notes</h4>
+        <p style="margin: 0; line-height: 1.6; color: var(--text);">${escapeHtml(notes)}</p>
+      </div>
+    `;
+  }
+
+  // Book description
+  if (bookData.description) {
+    html += `
+      <div class="book-description">
+        <h4 style="margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--text);">About This Book</h4>
+        <p style="margin: 0; line-height: 1.7; color: var(--text-secondary);">${escapeHtml(bookData.description)}</p>
+      </div>
+    `;
+  }
+
+  // Google Books link
+  if (save.url) {
+    html += `
+      <p style="margin-top: 24px;"><a href="${save.url}" target="_blank" style="color: var(--primary);">View on Google Books →</a></p>
+    `;
+  }
+
+  return html;
+}
+
+function renderArticleContent(save) {
+  let html = '';
+
+  // AI enrich button for articles with content
+  if (save.content && save.content.length > 100) {
+    const hasKeyPoints = save.ai_metadata?.key_points?.length > 0;
+    html += renderAIEnrichButton(hasKeyPoints);
+
+    // AI-generated key points
+    if (save.ai_metadata?.key_points?.length > 0) {
+      html += renderKeyPoints(save.ai_metadata.key_points);
+    }
+  }
+
+  const content = save.content || save.excerpt || 'No content available.';
+  html += renderMarkdown(content);
+
+  return html;
+}
+
+function renderAIEnrichButton(hasExisting) {
+  return `
+    <button class="prettify-btn ai-enrich-btn" onclick="app.aiEnrichContent()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+      ${hasExisting ? 'Re-enrich with AI' : 'AI Enrich'}
+    </button>
+  `;
+}
+
+function renderKeyPoints(points) {
+  return `
+    <div class="article-key-points" style="margin-bottom: 24px;">
+      <h4 style="margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--text);">Key Points</h4>
+      <ul style="margin: 0; padding-left: 20px;">
+        ${points.map((point) => `<li style="margin-bottom: 8px; line-height: 1.5;">${escapeHtml(point)}</li>`).join('')}
+      </ul>
+    </div>
+  `;
+}
+
+function renderBookMetadata(metadata) {
+  return `
+    <div class="book-metadata" style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; padding: 16px; background: var(--bg-secondary); border-radius: var(--radius);">
+      ${
+        metadata.yearRead
+          ? `
+        <div class="book-meta-item">
+          <span style="font-size: 12px; color: var(--text-muted); display: block;">Year Read</span>
+          <span style="font-size: 14px; font-weight: 600; color: var(--text);">${metadata.yearRead}</span>
+        </div>
+      `
+          : ''
+      }
+      ${
+        metadata.dateRead
+          ? `
+        <div class="book-meta-item">
+          <span style="font-size: 12px; color: var(--text-muted); display: block;">Date Read</span>
+          <span style="font-size: 14px; font-weight: 600; color: var(--text);">${new Date(metadata.dateRead).toLocaleDateString()}</span>
+        </div>
+      `
+          : ''
+      }
+      ${
+        metadata.pageCount
+          ? `
+        <div class="book-meta-item">
+          <span style="font-size: 12px; color: var(--text-muted); display: block;">Pages</span>
+          <span style="font-size: 14px; font-weight: 600; color: var(--text);">${metadata.pageCount}</span>
+        </div>
+      `
+          : ''
+      }
+      ${
+        metadata.categories
+          ? `
+        <div class="book-meta-item">
+          <span style="font-size: 12px; color: var(--text-muted); display: block;">Category</span>
+          <span style="font-size: 14px; font-weight: 600; color: var(--text);">${escapeHtml(metadata.categories)}</span>
+        </div>
+      `
+          : ''
+      }
+      ${
+        metadata.publishedDate
+          ? `
+        <div class="book-meta-item">
+          <span style="font-size: 12px; color: var(--text-muted); display: block;">Published</span>
+          <span style="font-size: 14px; font-weight: 600; color: var(--text);">${metadata.publishedDate.split('-')[0]}</span>
+        </div>
+      `
+          : ''
+      }
+    </div>
+  `;
+}

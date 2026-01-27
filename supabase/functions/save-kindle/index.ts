@@ -1,11 +1,56 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  "https://web-swart-xi-99.vercel.app",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin.startsWith("chrome-extension://");
+  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
+// Verify JWT and extract user ID, with fallback for single-user mode
+async function verifyAuth(req: Request, bodyUserId?: string): Promise<{ user_id: string } | { error: string }> {
+  const authHeader = req.headers.get("Authorization");
+
+  // If JWT provided, verify it
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+
+    const supabaseAuth = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!
+    );
+
+    const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
+
+    if (error || !user) {
+      return { error: "Invalid or expired token" };
+    }
+
+    return { user_id: user.id };
+  }
+
+  // Fallback: Single-user mode - allow if user_id matches the configured single user
+  // Set SINGLE_USER_ID env var in Supabase Edge Function settings for this to work
+  const singleUserId = Deno.env.get("SINGLE_USER_ID");
+  if (singleUserId && bodyUserId === singleUserId) {
+    return { user_id: singleUserId };
+  }
+
+  // No valid auth method
+  return { error: "Missing or invalid authorization" };
+}
 
 interface KindleHighlight {
   title: string;
@@ -14,20 +59,34 @@ interface KindleHighlight {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { user_id, highlights } = await req.json();
+    // Parse body first to get user_id for single-user mode fallback
+    const body = await req.json();
+    const { user_id: bodyUserId, highlights } = body;
 
-    if (!user_id || !highlights || !Array.isArray(highlights)) {
+    if (!highlights || !Array.isArray(highlights)) {
       return new Response(
-        JSON.stringify({ error: "user_id and highlights array required" }),
+        JSON.stringify({ error: "highlights array required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Verify authentication (JWT or single-user mode)
+    const authResult = await verifyAuth(req, bodyUserId);
+    if ("error" in authResult) {
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const user_id = authResult.user_id;
 
     if (highlights.length === 0) {
       return new Response(

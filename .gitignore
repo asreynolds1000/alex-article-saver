@@ -8,15 +8,27 @@ Thumbs.db
 *.swp
 *.swo
 
-# Node (if you add any)
+# Node
 node_modules/
 npm-debug.log
+package-lock.json
+
+# Test artifacts
+playwright-report/
+test-results/
+coverage/
+.playwright/
 
 # Logs
 *.log
 
-# Local config with real credentials
+# Config files with credentials (use .example.js templates)
+extension/config.js
+web/config.js
 config.local.js
+
+# SQL files with hardcoded user IDs
+supabase/single-user-rls-fix.sql
 
 # Vercel
 .vercel/

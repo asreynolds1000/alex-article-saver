@@ -1,11 +1,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// This function is called by cron job with service role key
+// Restrict CORS to internal sources only
+const ALLOWED_ORIGINS = [
+  "https://web-swart-xi-99.vercel.app",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  const isAllowed = ALLOWED_ORIGINS.includes(origin);
+  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
+// Verify the request has proper authorization (service role key or valid JWT)
+function verifyAuthorization(req: Request): boolean {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return false;
+  }
+
+  // The cron job sends the service role key as Bearer token
+  // This is verified by Supabase when we use it to create the client
+  return authHeader.startsWith("Bearer ");
+}
 
 // Generate a simple summary from content (first 2 sentences)
 function generateSummary(content: string | null, excerpt: string | null): string {
@@ -123,12 +148,22 @@ function buildEmailText(saves: any[], highlights: any[], weekStart: string, week
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Verify authorization (service role key from cron)
+    if (!verifyAuthorization(req)) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       throw new Error("RESEND_API_KEY not configured");

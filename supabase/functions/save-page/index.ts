@@ -3,11 +3,57 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseHTML } from "https://esm.sh/linkedom@0.16.8";
 import { Readability } from "https://esm.sh/@mozilla/readability@0.5.0";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  "https://web-swart-xi-99.vercel.app",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  // Allow the origin if it's in our list, or if it's a chrome-extension
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin.startsWith("chrome-extension://");
+  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
+// Verify JWT and extract user ID, with fallback for single-user mode
+async function verifyAuth(req: Request, bodyUserId?: string): Promise<{ user_id: string } | { error: string }> {
+  const authHeader = req.headers.get("Authorization");
+
+  // If JWT provided, verify it
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+
+    const supabaseAuth = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!
+    );
+
+    const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
+
+    if (error || !user) {
+      return { error: "Invalid or expired token" };
+    }
+
+    return { user_id: user.id };
+  }
+
+  // Fallback: Single-user mode - allow if user_id matches the configured single user
+  // Set SINGLE_USER_ID env var in Supabase Edge Function settings for this to work
+  const singleUserId = Deno.env.get("SINGLE_USER_ID");
+  if (singleUserId && bodyUserId === singleUserId) {
+    return { user_id: singleUserId };
+  }
+
+  // No valid auth method
+  return { error: "Missing or invalid authorization" };
+}
 
 const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
@@ -63,20 +109,34 @@ function extractArticle(html: string, url: string) {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { url, user_id, highlight, source, prefetched } = await req.json();
+    // Parse body first to get user_id for single-user mode fallback
+    const body = await req.json();
+    const { url, user_id: bodyUserId, highlight, source, prefetched } = body;
 
-    if (!url || !user_id) {
+    if (!url) {
       return new Response(
-        JSON.stringify({ error: "url and user_id required" }),
+        JSON.stringify({ error: "url is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Verify authentication (JWT or single-user mode)
+    const authResult = await verifyAuth(req, bodyUserId);
+    if ("error" in authResult) {
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const user_id = authResult.user_id;
 
     let article: any = null;
 

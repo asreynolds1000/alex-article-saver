@@ -15,8 +15,11 @@ A simple, self-hosted Pocket replacement with Chrome extension, web app, and cro
 
 ### 2. Configure the Extension
 
-1. Open `extension/config.js`
-2. Replace the placeholder values:
+1. Copy the template config file:
+   ```bash
+   cp extension/config.example.js extension/config.js
+   ```
+2. Edit `extension/config.js` and fill in your values:
    ```js
    const CONFIG = {
      SUPABASE_URL: 'https://your-project.supabase.co',
@@ -25,6 +28,8 @@ A simple, self-hosted Pocket replacement with Chrome extension, web app, and cro
      USER_ID: 'your-user-id', // After step 3
    };
    ```
+
+> **Security Note**: `config.js` files are gitignored to prevent committing credentials. Never commit files with real API keys.
 
 ### 3. Create Your User Account
 
@@ -40,7 +45,15 @@ A simple, self-hosted Pocket replacement with Chrome extension, web app, and cro
 3. Click "Load unpacked"
 4. Select the `extension` folder
 
-### 5. Deploy the Web App
+### 5. Configure the Web App
+
+1. Copy the template config file:
+   ```bash
+   cp web/config.example.js web/config.js
+   ```
+2. Edit `web/config.js` with your Supabase credentials
+
+### 6. Deploy the Web App
 
 **Option A: Vercel (Recommended)**
 1. Push this repo to GitHub
@@ -56,9 +69,24 @@ python3 -m http.server 3000
 ```
 Then open http://localhost:3000
 
-### 6. Update Config with Web App URL
+### 7. Update Config with Web App URL
 
 After deploying, update `extension/config.js` with your web app URL.
+
+### 8. Set Up Email Allowlist (Optional)
+
+To restrict who can use your Stash instance:
+
+1. Run the migration in Supabase SQL Editor:
+   ```bash
+   # Or copy contents of supabase/migrations/001_email_allowlist.sql
+   ```
+2. Add allowed email addresses:
+   ```sql
+   INSERT INTO allowed_emails (email) VALUES ('your-email@example.com');
+   ```
+
+If the `allowed_emails` table is empty, all signups are allowed. Once you add at least one email, only those emails can sign up.
 
 ## Using Stash
 
@@ -135,7 +163,7 @@ Get a weekly email with summaries of everything you saved, plus random Kindle hi
 5. Add a secret named `RESEND_API_KEY` with your API key
 6. Update the `from` email in `supabase/functions/send-digest/index.ts` to match your verified domain
 
-### Deploying the Edge Function
+### Deploying Edge Functions
 
 ```bash
 # Install Supabase CLI if you haven't
@@ -145,9 +173,19 @@ npm install -g supabase
 supabase login
 supabase link --project-ref your-project-id
 
-# Deploy the digest function
+# Deploy all functions
+supabase functions deploy save-page
+supabase functions deploy save-kindle
 supabase functions deploy send-digest
 ```
+
+### Configuring Edge Function Secrets
+
+For single-user mode (bookmarklet/iOS shortcut), set your user ID as an environment variable:
+
+1. Go to Supabase Dashboard > **Project Settings** > **Edge Functions**
+2. Add a secret named `SINGLE_USER_ID` with your user UUID
+3. This allows the bookmarklet to save without full OAuth authentication
 
 ### Setting Up Scheduled Sending
 
