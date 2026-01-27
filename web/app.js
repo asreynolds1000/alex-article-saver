@@ -453,6 +453,21 @@ class StashApp {
       });
     }
 
+    // Tag Cloud Modal
+    const tagCloudModal = document.getElementById('tag-cloud-modal');
+    if (tagCloudModal) {
+      document.getElementById('tags-header').addEventListener('click', () => {
+        this.showTagCloudModal();
+      });
+
+      tagCloudModal.querySelector('.modal-overlay').addEventListener('click', () => {
+        this.hideTagCloudModal();
+      });
+      tagCloudModal.querySelector('.modal-close-btn').addEventListener('click', () => {
+        this.hideTagCloudModal();
+      });
+    }
+
     // Unified Settings Modal
     const settingsModal = document.getElementById('settings-modal');
     if (settingsModal) {
@@ -4524,6 +4539,75 @@ ${transcript.substring(0, 10000)}${transcript.length > 10000 ? '\n\n[... transcr
 
   hideAIJobsModal() {
     const modal = document.getElementById('ai-jobs-modal');
+    modal.classList.add('hidden');
+  }
+
+  // Tag Cloud Modal
+  async showTagCloudModal() {
+    const modal = document.getElementById('tag-cloud-modal');
+    const container = document.getElementById('tag-cloud-full');
+
+    modal.classList.remove('hidden');
+
+    // Get tag usage counts
+    const { data: saveTags } = await this.supabase
+      .from('save_tags')
+      .select('tag_id');
+
+    // Count occurrences of each tag
+    const tagCounts = {};
+    (saveTags || []).forEach(st => {
+      tagCounts[st.tag_id] = (tagCounts[st.tag_id] || 0) + 1;
+    });
+
+    // Find min/max for scaling
+    const counts = Object.values(tagCounts);
+    const minCount = Math.min(...counts, 1);
+    const maxCount = Math.max(...counts, 1);
+
+    // Render tags with sizes based on usage
+    container.innerHTML = this.tags.map(tag => {
+      const count = tagCounts[tag.id] || 0;
+      // Scale font size between 12px and 32px based on usage
+      const scale = maxCount > minCount
+        ? (count - minCount) / (maxCount - minCount)
+        : 0.5;
+      const fontSize = Math.round(14 + scale * 18);
+      const isActive = this.currentTagFilter?.id === tag.id;
+
+      return `
+        <span class="tag-cloud-tag${isActive ? ' active' : ''}"
+              data-id="${tag.id}"
+              data-name="${this.escapeHtml(tag.name)}"
+              style="font-size: ${fontSize}px"
+              title="${count} saves">
+          ${this.escapeHtml(tag.name)}
+        </span>
+      `;
+    }).join('');
+
+    // Bind click events
+    container.querySelectorAll('.tag-cloud-tag').forEach(el => {
+      el.addEventListener('click', () => {
+        const tagId = el.dataset.id;
+        const tagName = el.dataset.name;
+
+        // Toggle filter
+        if (this.currentTagFilter?.id === tagId) {
+          this.currentTagFilter = null;
+        } else {
+          this.currentTagFilter = { id: tagId, name: tagName };
+        }
+
+        this.renderTags();
+        this.loadSaves();
+        this.hideTagCloudModal();
+      });
+    });
+  }
+
+  hideTagCloudModal() {
+    const modal = document.getElementById('tag-cloud-modal');
     modal.classList.add('hidden');
   }
 

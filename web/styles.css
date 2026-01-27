@@ -408,6 +408,67 @@ input, select {
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
 }
 
+/* Tags header with expand icon */
+.tags-header {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tags-header:hover {
+  color: var(--primary);
+}
+
+.tags-header .expand-icon {
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+.tags-header:hover .expand-icon {
+  opacity: 1;
+}
+
+/* Tag Cloud Modal */
+.tag-cloud-modal-content {
+  max-width: 600px;
+  width: 90%;
+}
+
+.tag-cloud-hint {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.tag-cloud-full {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.tag-cloud-tag {
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  line-height: 1.2;
+}
+
+.tag-cloud-tag:hover {
+  color: var(--primary);
+  background: var(--bg-tertiary);
+}
+
+.tag-cloud-tag.active {
+  color: white;
+  background: var(--primary);
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: 12px;

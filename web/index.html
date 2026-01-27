@@ -148,7 +148,7 @@
         </div>
 
         <div class="nav-section">
-          <h3>Tags</h3>
+          <h3 class="tags-header" id="tags-header">Tags <span class="expand-icon">↗</span></h3>
           <div id="tags-list" class="tags-cloud"></div>
         </div>
 
@@ -783,6 +783,26 @@
         <div class="modal-footer hidden" id="apple-podcasts-footer">
           <button class="btn secondary" id="apple-podcasts-cancel-btn">Cancel</button>
           <button class="btn primary" id="apple-podcasts-import-btn-confirm">Import Selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Cloud Modal -->
+    <div id="tag-cloud-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content tag-cloud-modal-content">
+        <div class="modal-header">
+          <h2>All Tags</h2>
+          <button class="btn icon modal-close-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="tag-cloud-hint">Click a tag to filter your saves. Tag size reflects usage.</p>
+          <div id="tag-cloud-full" class="tag-cloud-full"></div>
         </div>
       </div>
     </div>
