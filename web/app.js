@@ -1563,14 +1563,25 @@ class StashApp {
   }
 
   async showStats() {
+    const container = document.getElementById('saves-container');
+    const loading = document.getElementById('loading');
+    const empty = document.getElementById('empty-state');
+
+    loading.classList.remove('hidden');
+    container.innerHTML = '';
+    empty.classList.add('hidden');
+
     const { data: saves } = await this.supabase
       .from('saves')
-      .select('created_at, highlight, is_archived');
+      .select('created_at, highlight, is_archived, is_favorite');
+
+    loading.classList.add('hidden');
 
     const totalSaves = saves?.length || 0;
     const highlights = saves?.filter(s => s.highlight)?.length || 0;
     const articles = totalSaves - highlights;
     const archived = saves?.filter(s => s.is_archived)?.length || 0;
+    const favorites = saves?.filter(s => s.is_favorite)?.length || 0;
 
     // Group by month
     const byMonth = {};
@@ -1579,14 +1590,8 @@ class StashApp {
       byMonth[month] = (byMonth[month] || 0) + 1;
     });
 
-    const content = document.querySelector('.content');
-    content.innerHTML = `
+    container.innerHTML = `
       <div class="stats-container">
-        <div class="stats-header">
-          <h2>Your Stats</h2>
-          <button class="btn secondary" onclick="app.setView('all')">← Back</button>
-        </div>
-
         <div class="stats-cards">
           <div class="stat-card">
             <div class="stat-card-value">${totalSaves}</div>
@@ -1599,6 +1604,10 @@ class StashApp {
           <div class="stat-card">
             <div class="stat-card-value">${highlights}</div>
             <div class="stat-card-label">Highlights</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-value">${favorites}</div>
+            <div class="stat-card-label">Favorites</div>
           </div>
           <div class="stat-card">
             <div class="stat-card-value">${archived}</div>
