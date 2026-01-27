@@ -100,42 +100,95 @@ describe('getAIConfig', () => {
     localStorage.clear();
   });
 
-  it('should return default claude config when nothing is set', () => {
+  it('should return default claude config with balanced tier when nothing is set', () => {
     const config = getAIConfig();
     expect(config.provider).toBe('claude');
     expect(config.hasKey).toBe(false);
-    expect(config.model).toBe('claude-sonnet-4-20250514');
+    expect(config.tier).toBe('balanced');
+    expect(config.model).toBe('claude-sonnet-4-20250514'); // balanced tier default
   });
 
-  it('should return claude config when claude provider is set', () => {
+  it('should return claude config with quality tier when set', () => {
     localStorage.setItem('stash-ai-provider', 'claude');
     localStorage.setItem('stash-claude-api-key', 'sk-ant-test');
-    localStorage.setItem('stash-claude-model', 'claude-3-opus-20240229');
+    localStorage.setItem('stash-ai-tier', 'quality');
 
     const config = getAIConfig();
     expect(config.provider).toBe('claude');
     expect(config.apiKey).toBe('sk-ant-test');
     expect(config.hasKey).toBe(true);
-    expect(config.model).toBe('claude-3-opus-20240229');
+    expect(config.tier).toBe('quality');
+    expect(config.model).toBe('claude-opus-4-20250514'); // quality tier for claude
   });
 
-  it('should return openai config when openai provider is set', () => {
+  it('should return openai config with balanced tier when set', () => {
     localStorage.setItem('stash-ai-provider', 'openai');
     localStorage.setItem('stash-openai-api-key', 'sk-test');
-    localStorage.setItem('stash-openai-model', 'gpt-4');
+    localStorage.setItem('stash-ai-tier', 'balanced');
 
     const config = getAIConfig();
     expect(config.provider).toBe('openai');
     expect(config.apiKey).toBe('sk-test');
     expect(config.hasKey).toBe(true);
-    expect(config.model).toBe('gpt-4');
+    expect(config.tier).toBe('balanced');
+    expect(config.model).toBe('gpt-4o'); // balanced tier for openai
   });
 
-  it('should use default model when none is set for openai', () => {
+  it('should resolve fast tier model for openai', () => {
     localStorage.setItem('stash-ai-provider', 'openai');
     localStorage.setItem('stash-openai-api-key', 'sk-test');
+    localStorage.setItem('stash-ai-tier', 'fast');
 
     const config = getAIConfig();
-    expect(config.model).toBe('gpt-4o-mini');
+    expect(config.tier).toBe('fast');
+    expect(config.model).toBe('gpt-4o-mini'); // fast tier for openai
+  });
+
+  it('should use cached models for dynamic resolution when available', () => {
+    // Simulate cached models from API
+    const cachedClaudeModels = [
+      'claude-3-5-haiku-20241022',
+      'claude-3-5-sonnet-20241022',
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
+    ];
+    localStorage.setItem('stash-claude-models-cache', JSON.stringify(cachedClaudeModels));
+    localStorage.setItem('stash-ai-provider', 'claude');
+    localStorage.setItem('stash-claude-api-key', 'sk-ant-test');
+    localStorage.setItem('stash-ai-tier', 'balanced');
+
+    const config = getAIConfig();
+    // Should pick the best sonnet model from cache
+    expect(config.model).toBe('claude-sonnet-4-20250514');
+  });
+
+  it('should pick newest model from cached models for a tier', () => {
+    // Simulate cached models with multiple sonnet versions
+    const cachedModels = [
+      'claude-3-5-sonnet-20241022',
+      'claude-sonnet-4-20250514',
+      'claude-3-7-sonnet-20250219',
+    ];
+    localStorage.setItem('stash-claude-models-cache', JSON.stringify(cachedModels));
+    localStorage.setItem('stash-ai-provider', 'claude');
+    localStorage.setItem('stash-claude-api-key', 'sk-ant-test');
+    localStorage.setItem('stash-ai-tier', 'balanced');
+
+    const config = getAIConfig();
+    // Should pick sonnet-4 as it has highest score
+    expect(config.model).toBe('claude-sonnet-4-20250514');
+  });
+
+  it('should fall back to default when no cached models match tier', () => {
+    // Cache only haiku models, but request quality tier
+    const cachedModels = ['claude-3-5-haiku-20241022'];
+    localStorage.setItem('stash-claude-models-cache', JSON.stringify(cachedModels));
+    localStorage.setItem('stash-ai-provider', 'claude');
+    localStorage.setItem('stash-claude-api-key', 'sk-ant-test');
+    localStorage.setItem('stash-ai-tier', 'quality');
+
+    const config = getAIConfig();
+    // Should fall back to default opus since no opus in cache
+    expect(config.model).toBe('claude-opus-4-20250514');
   });
 });

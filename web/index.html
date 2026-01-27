@@ -486,9 +486,40 @@
           </button>
         </div>
         <div class="modal-body">
-          <p class="ai-settings-description">Configure AI providers for transcript processing. Your API keys are stored locally in your browser and never sent to our servers.</p>
+          <p class="ai-settings-description">Configure AI for transcript processing and content enrichment. Your API keys are stored locally in your browser.</p>
 
           <div class="ai-settings-form">
+            <!-- Model Tier Selection -->
+            <div class="form-group">
+              <label>Model Tier</label>
+              <div class="tier-selection" id="ai-tier-selection">
+                <label class="tier-option">
+                  <input type="radio" name="ai-tier" value="fast">
+                  <div class="tier-card">
+                    <span class="tier-name">Fast</span>
+                    <span class="tier-desc">Quick responses, lower cost</span>
+                  </div>
+                </label>
+                <label class="tier-option">
+                  <input type="radio" name="ai-tier" value="balanced" checked>
+                  <div class="tier-card">
+                    <span class="tier-name">Balanced</span>
+                    <span class="tier-desc">Best balance of speed and quality</span>
+                    <span class="tier-badge">Recommended</span>
+                  </div>
+                </label>
+                <label class="tier-option">
+                  <input type="radio" name="ai-tier" value="quality">
+                  <div class="tier-card">
+                    <span class="tier-name">Quality</span>
+                    <span class="tier-desc">Best results, slower</span>
+                  </div>
+                </label>
+              </div>
+              <small class="form-hint" id="ai-tier-hint">Select the performance tier for AI processing</small>
+            </div>
+
+            <!-- Provider Selection -->
             <div class="form-group">
               <label for="ai-provider">AI Provider</label>
               <select id="ai-provider">
@@ -512,26 +543,10 @@
                 </div>
                 <small class="form-hint">Get your key from <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a></small>
                 <div class="api-key-actions">
-                  <button type="button" class="btn small primary" id="claude-key-validate">Validate & Load Models</button>
-                  <button type="button" class="btn small secondary" id="claude-key-reset">Reset Key</button>
+                  <button type="button" class="btn small primary" id="claude-key-validate">Validate Key</button>
+                  <button type="button" class="btn small secondary" id="claude-key-reset">Reset</button>
                 </div>
                 <div id="claude-key-status" class="api-key-status"></div>
-              </div>
-
-              <div class="form-group hidden" id="claude-model-group">
-                <label for="claude-model">Claude Model</label>
-                <div class="model-select-wrapper">
-                  <select id="claude-model">
-                    <option value="">-- Validate API key to load models --</option>
-                  </select>
-                  <button type="button" class="btn icon model-refresh-btn" id="claude-model-refresh" title="Refresh models">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="23 4 23 10 17 10"></polyline>
-                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                    </svg>
-                  </button>
-                </div>
-                <small class="form-hint" id="claude-model-hint">Select a model for AI processing</small>
               </div>
             </div>
 
@@ -550,26 +565,10 @@
                 </div>
                 <small class="form-hint">Get your key from <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></small>
                 <div class="api-key-actions">
-                  <button type="button" class="btn small primary" id="openai-key-validate">Validate & Load Models</button>
-                  <button type="button" class="btn small secondary" id="openai-key-reset">Reset Key</button>
+                  <button type="button" class="btn small primary" id="openai-key-validate">Validate Key</button>
+                  <button type="button" class="btn small secondary" id="openai-key-reset">Reset</button>
                 </div>
                 <div id="openai-key-status" class="api-key-status"></div>
-              </div>
-
-              <div class="form-group hidden" id="openai-model-group">
-                <label for="openai-model">OpenAI Model</label>
-                <div class="model-select-wrapper">
-                  <select id="openai-model">
-                    <option value="">-- Validate API key to load models --</option>
-                  </select>
-                  <button type="button" class="btn icon model-refresh-btn" id="openai-model-refresh" title="Refresh models">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="23 4 23 10 17 10"></polyline>
-                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                    </svg>
-                  </button>
-                </div>
-                <small class="form-hint" id="openai-model-hint">Select a model for AI processing</small>
               </div>
             </div>
 

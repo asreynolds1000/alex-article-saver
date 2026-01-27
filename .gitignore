@@ -24,6 +24,8 @@ coverage/
 # Config files with credentials (use .example.js templates)
 extension/config.js
 config.local.js
+.env*
+.env.local
 # Note: web/config.js is committed for Vercel deployment (credentials rotated Jan 2026)
 
 # SQL files with hardcoded user IDs

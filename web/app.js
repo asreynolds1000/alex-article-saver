@@ -19,6 +19,7 @@ import {
   getTimeAgo,
   showToast,
   getAIConfig,
+  getResolvedModelDisplayName,
 } from './lib/utils.js';
 
 import {
@@ -57,10 +58,6 @@ import {
   callOpenAIAPIRaw,
   callAI,
   callAIRaw,
-  fetchClaudeModels,
-  fetchOpenAIModels,
-  formatClaudeModelName,
-  formatOpenAIModelName,
 } from './services/ai.js';
 
 import {
@@ -167,6 +164,9 @@ class StashApp {
 
     // Load AI jobs from localStorage (from ai-jobs service)
     loadAIJobs();
+
+    // Refresh AI model cache in background (if keys exist)
+    this.refreshModelCacheInBackground();
 
     // Check for existing session
     const { data: { session } } = await this.supabase.auth.getSession();
@@ -499,20 +499,12 @@ class StashApp {
         });
       });
 
-      // Model refresh buttons
-      document.getElementById('claude-model-refresh').addEventListener('click', () => {
-        this.fetchClaudeModels();
-      });
-      document.getElementById('openai-model-refresh').addEventListener('click', () => {
-        this.fetchOpenAIModels();
-      });
-
-      // Validate & Load Models buttons
+      // Validate Key buttons
       document.getElementById('claude-key-validate').addEventListener('click', () => {
-        this.validateAndLoadClaudeModels();
+        this.validateClaudeKey();
       });
       document.getElementById('openai-key-validate').addEventListener('click', () => {
-        this.validateAndLoadOpenAIModels();
+        this.validateOpenAIKey();
       });
 
       // Reset Key buttons
@@ -521,6 +513,13 @@ class StashApp {
       });
       document.getElementById('openai-key-reset').addEventListener('click', () => {
         this.resetOpenAIKey();
+      });
+
+      // Tier selection change - update hint
+      document.querySelectorAll('input[name="ai-tier"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          this.updateTierHint();
+        });
       });
     }
 
@@ -2110,40 +2109,41 @@ class StashApp {
 
   loadAISettings() {
     const provider = localStorage.getItem('stash-ai-provider') || 'claude';
+    const tier = localStorage.getItem('stash-ai-tier') || 'balanced';
     const claudeKey = localStorage.getItem('stash-claude-api-key') || '';
     const openaiKey = localStorage.getItem('stash-openai-api-key') || '';
-    const claudeModel = localStorage.getItem('stash-claude-model') || '';
-    const openaiModel = localStorage.getItem('stash-openai-model') || '';
 
+    // Set provider
     document.getElementById('ai-provider').value = provider;
+
+    // Set tier radio button
+    const tierRadio = document.querySelector(`input[name="ai-tier"][value="${tier}"]`);
+    if (tierRadio) {
+      tierRadio.checked = true;
+    }
+
+    // Set API keys
     document.getElementById('claude-api-key').value = claudeKey;
     document.getElementById('openai-api-key').value = openaiKey;
 
+    // Update provider-specific fields visibility
     this.updateAIProviderFields();
 
-    // Show model groups and fetch models if keys are already saved
-    const claudeModelGroup = document.getElementById('claude-model-group');
-    const openaiModelGroup = document.getElementById('openai-model-group');
-
+    // Update key status indicators
     if (claudeKey) {
-      claudeModelGroup.classList.remove('hidden');
-      this.fetchClaudeModels(claudeKey);
       this.updateClaudeKeyStatus('validated');
     } else {
-      claudeModelGroup.classList.add('hidden');
-      this.clearClaudeModels();
       this.updateClaudeKeyStatus('empty');
     }
 
     if (openaiKey) {
-      openaiModelGroup.classList.remove('hidden');
-      this.fetchOpenAIModels(openaiKey);
       this.updateOpenAIKeyStatus('validated');
     } else {
-      openaiModelGroup.classList.add('hidden');
-      this.clearOpenAIModels();
       this.updateOpenAIKeyStatus('empty');
     }
+
+    // Update tier hint
+    this.updateTierHint();
   }
 
   updateAIProviderFields() {
@@ -2159,23 +2159,34 @@ class StashApp {
       claudeConfigGroup.classList.add('hidden');
       openaiConfigGroup.classList.remove('hidden');
     }
+
+    // Update tier hint when provider changes
+    this.updateTierHint();
+  }
+
+  updateTierHint() {
+    const provider = document.getElementById('ai-provider').value;
+    const tier = document.querySelector('input[name="ai-tier"]:checked')?.value || 'balanced';
+    const hint = document.getElementById('ai-tier-hint');
+
+    // Get dynamically resolved model name
+    const modelName = getResolvedModelDisplayName(provider, tier);
+    hint.textContent = `Will use: ${modelName}`;
   }
 
   saveAISettings() {
     const status = document.getElementById('ai-settings-status');
     const provider = document.getElementById('ai-provider').value;
+    const tier = document.querySelector('input[name="ai-tier"]:checked')?.value || 'balanced';
     const claudeKey = document.getElementById('claude-api-key').value.trim();
     const openaiKey = document.getElementById('openai-api-key').value.trim();
-    const claudeModel = document.getElementById('claude-model').value;
-    const openaiModel = document.getElementById('openai-model').value;
 
     // Validate that the selected provider has a key (warn but don't block)
     const selectedKeyMissing = (provider === 'claude' && !claudeKey) || (provider === 'openai' && !openaiKey);
 
     // Save to localStorage
     localStorage.setItem('stash-ai-provider', provider);
-    localStorage.setItem('stash-claude-model', claudeModel);
-    localStorage.setItem('stash-openai-model', openaiModel);
+    localStorage.setItem('stash-ai-tier', tier);
 
     // Save or clear keys based on input
     if (claudeKey) {
@@ -2190,16 +2201,16 @@ class StashApp {
       localStorage.removeItem('stash-openai-api-key');
     }
 
-    // Get model display name for status message
-    const modelName = provider === 'claude'
-      ? document.getElementById('claude-model').selectedOptions[0].text
-      : document.getElementById('openai-model').selectedOptions[0].text;
+    // Get tier display name for status message
+    const tierNames = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality' };
+    const tierName = tierNames[tier] || 'Balanced';
+    const providerName = provider === 'claude' ? 'Claude' : 'OpenAI';
 
     if (selectedKeyMissing) {
-      status.textContent = `Settings saved, but ${provider === 'claude' ? 'Claude' : 'OpenAI'} key is missing. AI processing won't work.`;
+      status.textContent = `Settings saved, but ${providerName} key is missing. AI processing won't work.`;
       status.className = 'ai-settings-status error';
     } else {
-      status.textContent = `Settings saved! Using ${modelName} for AI processing.`;
+      status.textContent = `Settings saved! Using ${providerName} (${tierName} tier).`;
       status.className = 'ai-settings-status success';
     }
     status.classList.remove('hidden');
@@ -2212,247 +2223,96 @@ class StashApp {
     return getAIConfig();
   }
 
-  // ==================== Model Fetching Methods ====================
+  // ==================== AI Model Cache ====================
 
-  async fetchClaudeModels(apiKey) {
-    const key = apiKey || document.getElementById('claude-api-key').value.trim() || localStorage.getItem('stash-claude-api-key');
-    if (!key) {
-      this.clearClaudeModels();
-      return;
+  /**
+   * Refresh model cache in background for any saved API keys
+   * Called on app init to keep model lists current
+   */
+  async refreshModelCacheInBackground() {
+    const claudeKey = localStorage.getItem('stash-claude-api-key');
+    const openaiKey = localStorage.getItem('stash-openai-api-key');
+
+    // Refresh both in parallel, silently (no UI updates on failure)
+    const refreshPromises = [];
+
+    if (claudeKey) {
+      refreshPromises.push(this.refreshClaudeModelsCache(claudeKey));
     }
 
-    const refreshBtn = document.getElementById('claude-model-refresh');
-    const select = document.getElementById('claude-model');
-    const hint = document.getElementById('claude-model-hint');
+    if (openaiKey) {
+      refreshPromises.push(this.refreshOpenAIModelsCache(openaiKey));
+    }
 
-    refreshBtn.classList.add('loading');
-    refreshBtn.disabled = true;
-    hint.textContent = 'Loading models...';
+    if (refreshPromises.length > 0) {
+      await Promise.allSettled(refreshPromises);
+    }
+  }
 
+  /**
+   * Fetch and cache Claude models
+   * @param {string} apiKey - Claude API key
+   */
+  async refreshClaudeModelsCache(apiKey) {
     try {
       const response = await fetch('https://api.anthropic.com/v1/models', {
         method: 'GET',
         headers: {
-          'x-api-key': key,
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
+      if (!response.ok) return;
 
       const data = await response.json();
-      const models = data.data || [];
-
-      // Filter for chat models and sort by name
-      const chatModels = models
+      const models = (data.data || [])
         .filter(m => m.type === 'model' && m.id.includes('claude'))
-        .sort((a, b) => {
-          // Sort by display name, preferring newer models
-          if (a.id.includes('sonnet-4') && !b.id.includes('sonnet-4')) return -1;
-          if (!a.id.includes('sonnet-4') && b.id.includes('sonnet-4')) return 1;
-          if (a.id.includes('3-7') && !b.id.includes('3-7')) return -1;
-          if (!a.id.includes('3-7') && b.id.includes('3-7')) return 1;
-          return a.id.localeCompare(b.id);
-        });
+        .map(m => m.id);
 
-      // Save current selection
-      const currentSelection = select.value || localStorage.getItem('stash-claude-model');
-
-      // Populate select
-      select.innerHTML = chatModels.map(model => {
-        const displayName = this.formatClaudeModelName(model.id);
-        return `<option value="${model.id}">${displayName}</option>`;
-      }).join('');
-
-      // Restore selection if it exists
-      if (currentSelection && chatModels.some(m => m.id === currentSelection)) {
-        select.value = currentSelection;
-      }
-
-      hint.textContent = `${chatModels.length} models available`;
-      hint.style.color = 'var(--success)';
-
-      // Cache models
-      localStorage.setItem('stash-claude-models-cache', JSON.stringify(chatModels.map(m => m.id)));
-
-    } catch (error) {
-      console.error('Error fetching Claude models:', error);
-      hint.textContent = 'Failed to load models. Check API key.';
-      hint.style.color = 'var(--danger)';
-
-      // Try to use cached models
-      const cached = localStorage.getItem('stash-claude-models-cache');
-      if (cached) {
-        const cachedModels = JSON.parse(cached);
-        select.innerHTML = cachedModels.map(id => {
-          const displayName = this.formatClaudeModelName(id);
-          return `<option value="${id}">${displayName}</option>`;
-        }).join('');
-        hint.textContent = 'Using cached models';
-        hint.style.color = 'var(--text-muted)';
-      }
-    } finally {
-      refreshBtn.classList.remove('loading');
-      refreshBtn.disabled = false;
+      localStorage.setItem('stash-claude-models-cache', JSON.stringify(models));
+    } catch (e) {
+      // Silent failure - keep existing cache
     }
   }
 
-  formatClaudeModelName(modelId) {
-    // Format model ID into readable name
-    if (modelId.includes('sonnet-4')) return 'Claude Sonnet 4 (Latest)';
-    if (modelId.includes('3-7-sonnet')) return 'Claude 3.7 Sonnet';
-    if (modelId.includes('3-5-sonnet')) return 'Claude 3.5 Sonnet';
-    if (modelId.includes('3-5-haiku')) return 'Claude 3.5 Haiku (Fast)';
-    if (modelId.includes('opus')) return 'Claude Opus';
-    if (modelId.includes('haiku')) return 'Claude Haiku (Fast)';
-    return modelId;
-  }
-
-  clearClaudeModels() {
-    const select = document.getElementById('claude-model');
-    const hint = document.getElementById('claude-model-hint');
-    select.innerHTML = '<option value="">-- Enter API key to load models --</option>';
-    hint.textContent = 'Enter API key to load available models';
-    hint.style.color = '';
-  }
-
-  async fetchOpenAIModels(apiKey) {
-    const key = apiKey || document.getElementById('openai-api-key').value.trim() || localStorage.getItem('stash-openai-api-key');
-    if (!key) {
-      this.clearOpenAIModels();
-      return;
-    }
-
-    const refreshBtn = document.getElementById('openai-model-refresh');
-    const select = document.getElementById('openai-model');
-    const hint = document.getElementById('openai-model-hint');
-
-    refreshBtn.classList.add('loading');
-    refreshBtn.disabled = true;
-    hint.textContent = 'Loading models...';
-
+  /**
+   * Fetch and cache OpenAI models
+   * @param {string} apiKey - OpenAI API key
+   */
+  async refreshOpenAIModelsCache(apiKey) {
     try {
       const response = await fetch('https://api.openai.com/v1/models', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${key}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
+      if (!response.ok) return;
 
       const data = await response.json();
-      const models = data.data || [];
-
-      // Filter for GPT and o-series models suitable for chat
-      const chatModels = models
+      const models = (data.data || [])
         .filter(m => {
           const id = m.id.toLowerCase();
-          return (id.includes('gpt-4') || id.includes('gpt-5') || id.includes('gpt-3.5') || id.startsWith('o1') || id.startsWith('o3')) &&
+          return (id.includes('gpt-4') || id.includes('gpt-5') || id.includes('gpt-3.5') ||
+                  id.startsWith('o1') || id.startsWith('o3')) &&
                  !id.includes('instruct') && !id.includes('vision') && !id.includes('audio') &&
                  !id.includes('realtime') && !id.includes('embed');
         })
-        .sort((a, b) => {
-          // Sort with newest/best models first
-          const priority = (id) => {
-            if (id.includes('gpt-5') && !id.includes('mini')) return 0;
-            if (id.includes('gpt-5-mini')) return 1;
-            if (id.includes('gpt-4.1') && !id.includes('mini')) return 2;
-            if (id.includes('gpt-4.1-mini')) return 3;
-            if (id.includes('gpt-4o') && !id.includes('mini')) return 4;
-            if (id.includes('gpt-4o-mini')) return 5;
-            if (id.startsWith('o3')) return 6;
-            if (id.startsWith('o1') && !id.includes('mini')) return 7;
-            if (id.startsWith('o1-mini')) return 8;
-            if (id.includes('gpt-4-turbo')) return 9;
-            if (id.includes('gpt-4') && !id.includes('turbo')) return 10;
-            if (id.includes('gpt-3.5')) return 11;
-            return 20;
-          };
-          return priority(a.id) - priority(b.id);
-        });
+        .map(m => m.id);
 
-      // Save current selection
-      const currentSelection = select.value || localStorage.getItem('stash-openai-model');
-
-      // Populate select
-      select.innerHTML = chatModels.map(model => {
-        const displayName = this.formatOpenAIModelName(model.id);
-        return `<option value="${model.id}">${displayName}</option>`;
-      }).join('');
-
-      // Restore selection if it exists
-      if (currentSelection && chatModels.some(m => m.id === currentSelection)) {
-        select.value = currentSelection;
-      }
-
-      hint.textContent = `${chatModels.length} models available`;
-      hint.style.color = 'var(--success)';
-
-      // Cache models
-      localStorage.setItem('stash-openai-models-cache', JSON.stringify(chatModels.map(m => m.id)));
-
-    } catch (error) {
-      console.error('Error fetching OpenAI models:', error);
-      hint.textContent = 'Failed to load models. Check API key.';
-      hint.style.color = 'var(--danger)';
-
-      // Try to use cached models
-      const cached = localStorage.getItem('stash-openai-models-cache');
-      if (cached) {
-        const cachedModels = JSON.parse(cached);
-        select.innerHTML = cachedModels.map(id => {
-          const displayName = this.formatOpenAIModelName(id);
-          return `<option value="${id}">${displayName}</option>`;
-        }).join('');
-        hint.textContent = 'Using cached models';
-        hint.style.color = 'var(--text-muted)';
-      }
-    } finally {
-      refreshBtn.classList.remove('loading');
-      refreshBtn.disabled = false;
+      localStorage.setItem('stash-openai-models-cache', JSON.stringify(models));
+    } catch (e) {
+      // Silent failure - keep existing cache
     }
-  }
-
-  formatOpenAIModelName(modelId) {
-    // Format model ID into readable name
-    if (modelId === 'gpt-5') return 'GPT-5 (Latest)';
-    if (modelId === 'gpt-5-mini') return 'GPT-5 Mini (Fast)';
-    if (modelId.includes('gpt-5') && !modelId.includes('mini')) return modelId.replace('gpt-', 'GPT-');
-    if (modelId === 'gpt-4.1') return 'GPT-4.1';
-    if (modelId === 'gpt-4.1-mini') return 'GPT-4.1 Mini (Fast)';
-    if (modelId === 'gpt-4.1-nano') return 'GPT-4.1 Nano (Fastest)';
-    if (modelId === 'gpt-4o') return 'GPT-4o';
-    if (modelId === 'gpt-4o-mini') return 'GPT-4o Mini';
-    if (modelId === 'o1') return 'o1 (Reasoning)';
-    if (modelId === 'o1-mini') return 'o1 Mini (Reasoning, Fast)';
-    if (modelId === 'o3') return 'o3 (Reasoning)';
-    if (modelId === 'o3-mini') return 'o3 Mini (Reasoning, Fast)';
-    if (modelId.includes('gpt-4-turbo')) return 'GPT-4 Turbo';
-    if (modelId.includes('gpt-4')) return modelId.replace('gpt-', 'GPT-');
-    if (modelId.includes('gpt-3.5')) return 'GPT-3.5 Turbo';
-    return modelId;
-  }
-
-  clearOpenAIModels() {
-    const select = document.getElementById('openai-model');
-    const hint = document.getElementById('openai-model-hint');
-    select.innerHTML = '<option value="">-- Enter API key to load models --</option>';
-    hint.textContent = 'Enter API key to load available models';
-    hint.style.color = '';
   }
 
   // ==================== API Key Validation Methods ====================
 
-  async validateAndLoadClaudeModels() {
+  async validateClaudeKey() {
     const key = document.getElementById('claude-api-key').value.trim();
-    const status = document.getElementById('claude-key-status');
-    const modelGroup = document.getElementById('claude-model-group');
 
     if (!key) {
       this.updateClaudeKeyStatus('error', 'Please enter an API key');
@@ -2467,7 +2327,7 @@ class StashApp {
     this.updateClaudeKeyStatus('validating');
 
     try {
-      // Test the API key by fetching models
+      // Test the API key by fetching models (also caches them)
       const response = await fetch('https://api.anthropic.com/v1/models', {
         method: 'GET',
         headers: {
@@ -2484,23 +2344,20 @@ class StashApp {
         throw new Error(`API error: ${response.status}`);
       }
 
-      // Key is valid - save it and load models
+      // Key is valid - save it and cache models
       localStorage.setItem('stash-claude-api-key', key);
+      await this.refreshClaudeModelsCache(key);
       this.updateClaudeKeyStatus('validated');
-      modelGroup.classList.remove('hidden');
-      await this.fetchClaudeModels(key);
+      this.updateTierHint();
 
     } catch (error) {
       console.error('Claude key validation failed:', error);
       this.updateClaudeKeyStatus('error', error.message || 'Validation failed');
-      modelGroup.classList.add('hidden');
     }
   }
 
-  async validateAndLoadOpenAIModels() {
+  async validateOpenAIKey() {
     const key = document.getElementById('openai-api-key').value.trim();
-    const status = document.getElementById('openai-key-status');
-    const modelGroup = document.getElementById('openai-model-group');
 
     if (!key) {
       this.updateOpenAIKeyStatus('error', 'Please enter an API key');
@@ -2515,7 +2372,7 @@ class StashApp {
     this.updateOpenAIKeyStatus('validating');
 
     try {
-      // Test the API key by fetching models
+      // Test the API key by fetching models (also caches them)
       const response = await fetch('https://api.openai.com/v1/models', {
         method: 'GET',
         headers: {
@@ -2530,16 +2387,15 @@ class StashApp {
         throw new Error(`API error: ${response.status}`);
       }
 
-      // Key is valid - save it and load models
+      // Key is valid - save it and cache models
       localStorage.setItem('stash-openai-api-key', key);
+      await this.refreshOpenAIModelsCache(key);
       this.updateOpenAIKeyStatus('validated');
-      modelGroup.classList.remove('hidden');
-      await this.fetchOpenAIModels(key);
+      this.updateTierHint();
 
     } catch (error) {
       console.error('OpenAI key validation failed:', error);
       this.updateOpenAIKeyStatus('error', error.message || 'Validation failed');
-      modelGroup.classList.add('hidden');
     }
   }
 
@@ -2547,18 +2403,16 @@ class StashApp {
     document.getElementById('claude-api-key').value = '';
     localStorage.removeItem('stash-claude-api-key');
     localStorage.removeItem('stash-claude-models-cache');
-    document.getElementById('claude-model-group').classList.add('hidden');
-    this.clearClaudeModels();
     this.updateClaudeKeyStatus('empty');
+    this.updateTierHint(); // Update to show default model
   }
 
   resetOpenAIKey() {
     document.getElementById('openai-api-key').value = '';
     localStorage.removeItem('stash-openai-api-key');
     localStorage.removeItem('stash-openai-models-cache');
-    document.getElementById('openai-model-group').classList.add('hidden');
-    this.clearOpenAIModels();
     this.updateOpenAIKeyStatus('empty');
+    this.updateTierHint(); // Update to show default model
   }
 
   updateClaudeKeyStatus(state, message = '') {
