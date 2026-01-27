@@ -18,16 +18,36 @@ stash/
 │   ├── popup.*          # Extension popup UI
 │   ├── supabase.js      # Minimal Supabase REST client for extension
 │   ├── Readability.js   # Mozilla Readability for article extraction
-│   └── config.js        # Supabase credentials + USER_ID
+│   └── config.js        # Supabase credentials + USER_ID (gitignored)
 │
-├── web/             # Web app (PWA)
-│   ├── app.js           # Main app class: auth, CRUD, search, Kindle import
-│   ├── config.js        # Supabase credentials + USER_ID
-│   ├── index.html       # SPA with sidebar navigation
-│   └── sw.js            # Service worker for offline support
+├── web/             # Web app (PWA) - ES6 modules
+│   ├── app.js           # Main app class with module imports
+│   ├── config.js        # Supabase credentials + USER_ID (gitignored)
+│   ├── index.html       # SPA with <script type="module">
+│   ├── sw.js            # Service worker for offline support
+│   │
+│   ├── lib/             # Core modules
+│   │   ├── state.js         # Centralized app state
+│   │   └── utils.js         # Shared utilities (escapeHtml, showToast, etc.)
+│   │
+│   ├── services/        # Business logic modules
+│   │   ├── supabase.js      # Database CRUD operations
+│   │   ├── audio.js         # Audio playback
+│   │   ├── kindle.js        # Kindle import
+│   │   ├── ai.js            # Claude/OpenAI API calls
+│   │   └── ai-jobs.js       # Background job tracking
+│   │
+│   ├── ui/              # UI modules
+│   │   ├── modals.js        # Modal lifecycle (show/hide/reset)
+│   │   ├── reading-pane.js  # Reading pane display
+│   │   └── renders.js       # HTML rendering utilities
+│   │
+│   └── utils/           # Standalone utilities
+│       └── kindle-parser.js # Kindle clippings parser
 │
 ├── supabase/        # Database & serverless functions
 │   ├── schema.sql       # Tables: saves, tags, folders, save_tags, user_preferences
+│   ├── migrations/      # SQL migrations
 │   └── functions/
 │       ├── save-page/       # Server-side article extraction (Deno)
 │       ├── save-kindle/     # Batch Kindle highlight import
@@ -39,6 +59,12 @@ stash/
 ├── bookmarklet/     # Universal save bookmarklet
 └── ios-shortcut/    # iOS Shortcut instructions for Safari
 ```
+
+## Deployment
+
+- **GitHub**: `asreynolds1000/alex-article-saver`
+- **Vercel**: Project "stash" → https://stash.alexreynolds.com
+- **Deploy**: Push to GitHub (auto-deploys) or `cd web && vercel --prod`
 
 ## Configuration
 
@@ -116,6 +142,8 @@ python tts/tts.py           # Daemon mode (checks every 2 min)
 - **Full-text search**: PostgreSQL `to_tsvector` with weighted fields (title=A, excerpt/highlight=B, content=C). Query via `search_saves(query, user_id)` RPC.
 - **Kindle deduplication**: `save-kindle` function checks existing highlights by `highlight|||title` key before insert.
 - **Theme**: `data-theme` attribute on `<html>`, persisted in localStorage as `stash-theme`.
+- **ES6 modules + inline handlers**: Since `<script type="module">` scopes variables, `app.js` must expose the app globally with `window.app = app` for inline `onclick="app.method()"` handlers to work.
+- **Centralized state**: All modules import from `lib/state.js`. The `StashApp` class uses proxy getters/setters for backwards compatibility (`get supabase() { return appState.supabase; }`).
 
 ## Edge Function Security
 
@@ -138,11 +166,11 @@ The `verifyAuth()` helper validates either:
 **Completed improvements (Jan 2025):**
 - Phase 1: Security fixes (credential protection, JWT auth, CORS restrictions, email allowlist)
 - Phase 2: Testing infrastructure (Vitest, Playwright, ESLint, GitHub Actions CI)
+- Phase 4: Modular architecture (10 new modules extracted from app.js)
 
 **Remaining planned work:**
 - Phase 3: Type safety (JSDoc annotations, type definitions)
-- Phase 4: Code quality (modularize app.js, accessibility audit)
-- Phase 5: Documentation updates
+- Phase 4 (cont.): Wire remaining app.js methods to modules
+- Phase 5: Documentation updates, accessibility audit
 
 **To resume work:** See `PROGRESS.md` for detailed status and next steps.
-**Full plan:** `~/.claude/plans/serene-sprouting-castle.md`

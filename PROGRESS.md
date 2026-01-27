@@ -43,7 +43,14 @@ This file tracks the progress of the comprehensive improvement plan for Stash.
 - [x] Set up proxy getters/setters for centralized state
 - [x] Delegated utility methods (escapeHtml, renderMarkdown, formatTime, getTimeAgo, showToast, getAIConfig)
 - [x] Delegated AI jobs methods (createAIJob, updateAIJob, updateAIJobsUI, renderAIJobsList)
-- [ ] Wire up remaining service delegations
+- [x] Fixed ES6 module scoping issue (added `window.app = app` for inline handlers)
+- [ ] Wire up remaining service delegations (optional - app works as-is)
+
+#### Deployment Setup ✅
+- [x] Pushed to GitHub: `asreynolds1000/alex-article-saver`
+- [x] Deployed to Vercel from `web/` subdirectory
+- [x] Renamed Vercel project to "stash"
+- [x] Site live at: https://stash.alexreynolds.com
 
 **Current test status:** 33 tests passing (11 kindle-parser + 22 utils)
 **app.js line count:** 4,848 lines (down from 4,911)
