@@ -772,39 +772,7 @@ class StashApp {
   renderSaves() {
     const container = document.getElementById('saves-container');
 
-    container.innerHTML = this.saves.map(save => {
-      const isHighlight = !!save.highlight;
-      const date = new Date(save.created_at).toLocaleDateString();
-
-      if (isHighlight) {
-        return `
-          <div class="save-card highlight" data-id="${save.id}">
-            <div class="save-card-content">
-              <div class="save-card-site">${this.escapeHtml(save.site_name || '')}</div>
-              <div class="save-card-highlight">"${this.escapeHtml(save.highlight)}"</div>
-              <div class="save-card-title">${this.escapeHtml(save.title || 'Untitled')}</div>
-              <div class="save-card-meta">
-                <span class="save-card-date">${date}</span>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      return `
-        <div class="save-card" data-id="${save.id}">
-          ${save.image_url ? `<img class="save-card-image" src="${save.image_url}" alt="" onerror="this.style.display='none'">` : ''}
-          <div class="save-card-content">
-            <div class="save-card-site">${this.escapeHtml(save.site_name || '')}</div>
-            <div class="save-card-title">${this.escapeHtml(save.title || 'Untitled')}</div>
-            <div class="save-card-excerpt">${this.escapeHtml(save.excerpt || '')}</div>
-            <div class="save-card-meta">
-              <span class="save-card-date">${date}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+    container.innerHTML = this.saves.map(save => this.renderSaveCard(save)).join('');
 
     // Bind click events
     container.querySelectorAll('.save-card').forEach(card => {

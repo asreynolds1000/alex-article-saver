@@ -66,6 +66,16 @@ stash/
 - **Vercel**: Project "stash" → https://stash.alexreynolds.com
 - **Deploy**: Push to GitHub (auto-deploys) or `cd web && vercel --prod`
 
+**Always check deployment status after pushing:**
+```bash
+# Check GitHub CI
+gh run list --limit 1
+
+# Check Vercel deployment via GitHub API
+gh api repos/asreynolds1000/alex-article-saver/deployments --jq '.[0] | "\(.environment) - \(.created_at)"'
+gh api repos/asreynolds1000/alex-article-saver/deployments/\(ID)/statuses --jq '.[0] | "\(.state) - \(.description)"'
+```
+
 ## Configuration
 
 Config files are gitignored. Copy from templates:
