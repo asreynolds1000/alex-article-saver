@@ -3,6 +3,48 @@
 
 importScripts('config.js', 'supabase.js');
 
+/**
+ * Normalize a date value to ISO 8601 format for PostgreSQL
+ * Handles Unix timestamps (seconds or milliseconds), ISO strings, etc.
+ * @param {string|number|null} dateValue - The date value to normalize
+ * @returns {string|null} ISO 8601 string or null
+ */
+function normalizeDate(dateValue) {
+  if (!dateValue) return null;
+
+  const str = String(dateValue).trim();
+
+  // Unix timestamp in seconds (10 digits, like 1747017900)
+  if (/^\d{10}$/.test(str)) {
+    try {
+      return new Date(parseInt(str, 10) * 1000).toISOString();
+    } catch {
+      return null;
+    }
+  }
+
+  // Unix timestamp in milliseconds (13 digits)
+  if (/^\d{13}$/.test(str)) {
+    try {
+      return new Date(parseInt(str, 10)).toISOString();
+    } catch {
+      return null;
+    }
+  }
+
+  // Already a valid date string - verify it parses
+  try {
+    const date = new Date(str);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+  } catch {
+    // Fall through to return null
+  }
+
+  return null;
+}
+
 let supabase = null;
 
 // Initialize on startup
@@ -112,7 +154,7 @@ async function savePage(tab) {
       excerpt: article.excerpt,
       site_name: article.siteName,
       author: article.author,
-      published_at: article.publishedTime,
+      published_at: normalizeDate(article.publishedTime),
       image_url: article.imageUrl,
       source: 'extension',
     });

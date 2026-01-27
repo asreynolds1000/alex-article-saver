@@ -4543,34 +4543,42 @@ Respond ONLY with valid JSON in this exact format:
       // Skip if tag already exists on this save
       if (existingTagNames.has(normalizedTag)) continue;
 
-      // Get or create the tag
-      let { data: tag } = await this.supabase
+      // Get or create the tag - use maybeSingle() to avoid error when tag doesn't exist
+      let { data: tag, error: findError } = await this.supabase
         .from('tags')
         .select('id')
         .eq('name', normalizedTag)
         .eq('user_id', this.user.id)
-        .single();
+        .maybeSingle();
+
+      if (findError) {
+        console.error('Error finding tag:', findError);
+        continue;
+      }
 
       if (!tag) {
         // Create new tag
-        const { data: newTag, error } = await this.supabase
+        const { data: newTag, error: createError } = await this.supabase
           .from('tags')
           .insert([{ name: normalizedTag, user_id: this.user.id }])
           .select()
           .single();
 
-        if (error) {
-          console.error('Error creating tag:', error);
+        if (createError) {
+          console.error('Error creating tag:', createError);
           continue;
         }
         tag = newTag;
       }
 
       // Link tag to save
-      await this.supabase
+      const { error: linkError } = await this.supabase
         .from('save_tags')
-        .insert([{ save_id: saveId, tag_id: tag.id }])
-        .select();
+        .insert([{ save_id: saveId, tag_id: tag.id }]);
+
+      if (linkError) {
+        console.error('Error linking tag to save:', linkError);
+      }
     }
   }
 
