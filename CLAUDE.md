@@ -194,6 +194,10 @@ The `verifyAuth()` helper validates either:
 
 ## Recent Features (Jan 2026)
 
+- **Bulk book import**: Paste a list of books, AI parses titles/authors/years, Google Books matches metadata, batch import with progress tracking
+- **Auto-enrich on bulk import**: Checkbox to automatically run AI enrichment (Fast tier) after importing books
+- **AI enrich button state**: Shows "Enriching..." with spinner during processing, disables button
+- **Reading pane tags**: Tags now display in reading pane footer, refresh after AI enrichment
 - **Tag filtering**: Click tags in sidebar to filter saves; click "Tags ↗" header for full tag cloud modal with tags sized by usage
 - **Favorites view**: Heart button marks saves as favorites, new Favorites nav item shows all
 - **Dual date display**: Cards show "Published X · Saved Y" when publication date available
@@ -207,6 +211,9 @@ The `verifyAuth()` helper validates either:
 - **Event binding guards**: Always check element exists before `addEventListener()` - missing elements cause cascade failures that break subsequent bindings
 - **Tag filtering**: Uses `save_tags` join table, query pattern: get tag_id's save_ids, then filter saves array
 - **Modal state**: `currentTagFilter` stored in `lib/state.js`, cleared on view change
+- **Bulk import flow**: Modal closes immediately on import, AI job tracks progress in background, user can check AI Jobs panel
+- **AI enrichment UI state**: Use `setEnrichingInProgress()` from `reading-pane.js` to update button state during enrichment
+- **Reading pane tags**: Call `refreshSaveTags()` after modifying tags to update the reading pane display
 
 ## Audit Findings (Jan 2026)
 

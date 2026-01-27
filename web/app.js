@@ -1175,7 +1175,7 @@ class StashApp {
     document.getElementById('reading-title').textContent = save.title || 'Untitled';
 
     // Build meta line with publication date (if available) and saved date
-    let metaParts = [];
+    const metaParts = [];
     if (save.site_name) metaParts.push(save.site_name);
     if (save.author) metaParts.push(save.author);
     if (save.published_at) {
@@ -3837,7 +3837,7 @@ Provide insights in 2-3 short paragraphs. Focus on:
     // Parse SRT format and extract just the text
     const lines = content.split('\n');
     const textLines = [];
-    let skipNext = false;
+    const skipNext = false;
 
     for (const line of lines) {
       const trimmed = line.trim();
@@ -3872,7 +3872,7 @@ Provide insights in 2-3 short paragraphs. Focus on:
     const saveBtn = document.getElementById('podcast-save-btn');
 
     // Get transcript from either paste or file
-    let transcript = pastedTranscript || (this.pendingPodcastFile?.content || '');
+    const transcript = pastedTranscript || (this.pendingPodcastFile?.content || '');
 
     if (!showName) {
       status.textContent = 'Please enter a podcast/show name';
