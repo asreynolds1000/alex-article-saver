@@ -7,6 +7,7 @@ export const appState = {
   user: null,
   currentView: 'all',
   currentSave: null,
+  currentTagFilter: null, // { id, name } of active tag filter
 
   // Data arrays
   saves: [],
@@ -56,6 +57,10 @@ export function setTags(tags) {
 
 export function setFolders(folders) {
   appState.folders = folders;
+}
+
+export function setCurrentTagFilter(tagFilter) {
+  appState.currentTagFilter = tagFilter;
 }
 
 export function setPendingKindleImport(data) {

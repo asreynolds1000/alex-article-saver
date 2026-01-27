@@ -10,6 +10,7 @@ import {
   setSaves,
   setTags,
   setFolders,
+  setCurrentTagFilter,
 } from './lib/state.js';
 
 import {
@@ -149,6 +150,8 @@ class StashApp {
   set tags(v) { setTags(v); }
   get folders() { return appState.folders; }
   set folders(v) { setFolders(v); }
+  get currentTagFilter() { return appState.currentTagFilter; }
+  set currentTagFilter(v) { setCurrentTagFilter(v); }
   get allowedEmails() { return appState.allowedEmails; }
   get aiJobs() { return appState.aiJobs; }
   get aiJobIdCounter() { return appState.aiJobIdCounter; }
@@ -754,7 +757,20 @@ class StashApp {
       return;
     }
 
-    this.saves = data || [];
+    let saves = data || [];
+
+    // Apply tag filter if active
+    if (this.currentTagFilter) {
+      const { data: taggedSaves } = await this.supabase
+        .from('save_tags')
+        .select('save_id')
+        .eq('tag_id', this.currentTagFilter.id);
+
+      const taggedSaveIds = new Set((taggedSaves || []).map(st => st.save_id));
+      saves = saves.filter(s => taggedSaveIds.has(s.id));
+    }
+
+    this.saves = saves;
 
     if (this.saves.length === 0) {
       empty.classList.remove('hidden');
@@ -965,13 +981,26 @@ class StashApp {
 
   renderTags() {
     const container = document.getElementById('tags-list');
+    const activeTagId = this.currentTagFilter?.id;
+
     container.innerHTML = this.tags.map(tag => `
-      <span class="tag" data-id="${tag.id}">${this.escapeHtml(tag.name)}</span>
+      <span class="tag${tag.id === activeTagId ? ' active' : ''}" data-id="${tag.id}" data-name="${this.escapeHtml(tag.name)}">${this.escapeHtml(tag.name)}</span>
     `).join('');
 
     container.querySelectorAll('.tag').forEach(el => {
       el.addEventListener('click', () => {
-        // TODO: Filter by tag
+        const tagId = el.dataset.id;
+        const tagName = el.dataset.name;
+
+        // Toggle filter - clicking active tag clears it
+        if (this.currentTagFilter?.id === tagId) {
+          this.currentTagFilter = null;
+        } else {
+          this.currentTagFilter = { id: tagId, name: tagName };
+        }
+
+        this.renderTags(); // Update active state
+        this.loadSaves();  // Reload with filter
       });
     });
   }
@@ -998,6 +1027,12 @@ class StashApp {
 
   setView(view) {
     this.currentView = view;
+
+    // Clear tag filter when switching views
+    if (this.currentTagFilter) {
+      this.currentTagFilter = null;
+      this.renderTags();
+    }
 
     // Update nav
     document.querySelectorAll('.nav-item[data-view]').forEach(item => {
