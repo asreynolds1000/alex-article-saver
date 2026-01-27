@@ -20,6 +20,7 @@ import {
   showToast,
   getAIConfig,
   getResolvedModelDisplayName,
+  resolveModelForTier,
 } from './lib/utils.js';
 
 import {
@@ -713,6 +714,9 @@ class StashApp {
       this.loadTags(),
       this.loadFolders(),
     ]);
+
+    // Check for auto-enrichment in the background (non-blocking)
+    this.autoEnrichRecentSaves();
   }
 
   async loadSaves() {
@@ -937,7 +941,12 @@ class StashApp {
 
   renderSaveCard(save) {
     const isHighlight = !!save.highlight;
-    const date = new Date(save.created_at).toLocaleDateString();
+    const savedDate = new Date(save.created_at).toLocaleDateString();
+    const publishedDate = save.published_at ? new Date(save.published_at).toLocaleDateString() : null;
+
+    // Show published date if available, otherwise saved date
+    const displayDate = publishedDate || savedDate;
+    const dateLabel = publishedDate ? 'Published' : 'Saved';
 
     if (isHighlight) {
       return `
@@ -947,7 +956,7 @@ class StashApp {
             <div class="save-card-highlight">"${this.escapeHtml(save.highlight)}"</div>
             <div class="save-card-title">${this.escapeHtml(save.title || 'Untitled')}</div>
             <div class="save-card-meta">
-              <span class="save-card-date">${date}</span>
+              <span class="save-card-date">${savedDate}</span>
             </div>
           </div>
         </div>
@@ -962,7 +971,7 @@ class StashApp {
           <div class="save-card-title">${this.escapeHtml(save.title || 'Untitled')}</div>
           <div class="save-card-excerpt">${this.escapeHtml(save.excerpt || '')}</div>
           <div class="save-card-meta">
-            <span class="save-card-date">${date}</span>
+            <span class="save-card-date" title="${dateLabel} ${displayDate}">${displayDate}</span>
           </div>
         </div>
       </div>
@@ -1082,9 +1091,17 @@ class StashApp {
     this.stopAudio();
 
     document.getElementById('reading-title').textContent = save.title || 'Untitled';
-    document.getElementById('reading-meta').innerHTML = `
-      ${save.site_name || ''} ${save.author ? `· ${save.author}` : ''} · ${new Date(save.created_at).toLocaleDateString()}
-    `;
+
+    // Build meta line with publication date (if available) and saved date
+    let metaParts = [];
+    if (save.site_name) metaParts.push(save.site_name);
+    if (save.author) metaParts.push(save.author);
+    if (save.published_at) {
+      metaParts.push(`Published ${new Date(save.published_at).toLocaleDateString()}`);
+    }
+    metaParts.push(`Saved ${new Date(save.created_at).toLocaleDateString()}`);
+
+    document.getElementById('reading-meta').innerHTML = metaParts.join(' · ');
 
     // Handle audio player visibility
     const audioPlayer = document.getElementById('audio-player');
@@ -2112,6 +2129,7 @@ class StashApp {
     const tier = localStorage.getItem('stash-ai-tier') || 'balanced';
     const claudeKey = localStorage.getItem('stash-claude-api-key') || '';
     const openaiKey = localStorage.getItem('stash-openai-api-key') || '';
+    const autoEnrich = localStorage.getItem('stash-ai-auto-enrich') === 'true';
 
     // Set provider
     document.getElementById('ai-provider').value = provider;
@@ -2125,6 +2143,9 @@ class StashApp {
     // Set API keys
     document.getElementById('claude-api-key').value = claudeKey;
     document.getElementById('openai-api-key').value = openaiKey;
+
+    // Set auto-enrich checkbox
+    document.getElementById('ai-auto-enrich').checked = autoEnrich;
 
     // Update provider-specific fields visibility
     this.updateAIProviderFields();
@@ -2180,6 +2201,7 @@ class StashApp {
     const tier = document.querySelector('input[name="ai-tier"]:checked')?.value || 'balanced';
     const claudeKey = document.getElementById('claude-api-key').value.trim();
     const openaiKey = document.getElementById('openai-api-key').value.trim();
+    const autoEnrich = document.getElementById('ai-auto-enrich').checked;
 
     // Validate that the selected provider has a key (warn but don't block)
     const selectedKeyMissing = (provider === 'claude' && !claudeKey) || (provider === 'openai' && !openaiKey);
@@ -2187,6 +2209,7 @@ class StashApp {
     // Save to localStorage
     localStorage.setItem('stash-ai-provider', provider);
     localStorage.setItem('stash-ai-tier', tier);
+    localStorage.setItem('stash-ai-auto-enrich', autoEnrich.toString());
 
     // Save or clear keys based on input
     if (claudeKey) {
@@ -4463,13 +4486,15 @@ ${transcript.substring(0, 10000)}${transcript.length > 10000 ? '\n\n[... transcr
       const prompt = `Analyze this ${contentType} and provide:
 1. 3-5 key points or takeaways (as a JSON array of strings)
 2. 3-7 relevant tags/topics for categorization (as a JSON array of strings, lowercase, single words or short phrases)
+3. The publication date if mentioned (as ISO 8601 string like "2024-01-15" or null if not found)
 
 ${contentToAnalyze}
 
 Respond ONLY with valid JSON in this exact format:
 {
   "key_points": ["point 1", "point 2", "point 3"],
-  "tags": ["tag1", "tag2", "tag3"]
+  "tags": ["tag1", "tag2", "tag3"],
+  "published_at": "2024-01-15" or null
 }`;
 
       let result;
@@ -4478,6 +4503,8 @@ Respond ONLY with valid JSON in this exact format:
       } else {
         result = await this.callOpenAIAPI(prompt, config.apiKey, config.model, 1024);
       }
+
+      console.log('AI Enrich raw result:', result);
 
       // The API methods already parse JSON, but handle key_points vs keyPoints
       if (result.keyPoints && !result.key_points) {
@@ -4491,15 +4518,29 @@ Respond ONLY with valid JSON in this exact format:
         enriched_at: new Date().toISOString(),
       };
 
+      console.log('AI metadata to save:', aiMetadata);
+
+      // Build update object - include published_at if AI found a date and we don't have one
+      const updateData = { ai_metadata: aiMetadata };
+      if (result.published_at && !save.published_at) {
+        // Validate the date before saving
+        const parsedDate = new Date(result.published_at);
+        if (!isNaN(parsedDate.getTime())) {
+          updateData.published_at = parsedDate.toISOString();
+          console.log('Setting publication date from AI:', updateData.published_at);
+        }
+      }
+
       // Update in database
       const { error } = await this.supabase
         .from('saves')
-        .update({ ai_metadata: aiMetadata })
+        .update(updateData)
         .eq('id', save.id);
 
       if (error) throw error;
 
       // Add tags to the save
+      console.log('Tags to add:', result.tags);
       if (result.tags && result.tags.length > 0) {
         await this.addTagsToSave(save.id, result.tags);
       }
@@ -4529,19 +4570,36 @@ Respond ONLY with valid JSON in this exact format:
   }
 
   async addTagsToSave(saveId, tags) {
+    console.log('addTagsToSave called with:', { saveId, tags, userId: this.user?.id });
+
+    if (!this.user?.id) {
+      console.error('No user ID available for adding tags');
+      return;
+    }
+
     // Get existing tags for this save
-    const { data: existingTags } = await this.supabase
+    const { data: existingTags, error: fetchError } = await this.supabase
       .from('save_tags')
       .select('tag_id, tags(name)')
       .eq('save_id', saveId);
+
+    if (fetchError) {
+      console.error('Error fetching existing tags:', fetchError);
+    }
+
+    console.log('Existing tags on save:', existingTags);
 
     const existingTagNames = new Set((existingTags || []).map(t => t.tags?.name?.toLowerCase()));
 
     for (const tagName of tags) {
       const normalizedTag = tagName.toLowerCase().trim();
+      console.log('Processing tag:', normalizedTag);
 
       // Skip if tag already exists on this save
-      if (existingTagNames.has(normalizedTag)) continue;
+      if (existingTagNames.has(normalizedTag)) {
+        console.log('Tag already exists on save, skipping:', normalizedTag);
+        continue;
+      }
 
       // Get or create the tag - use maybeSingle() to avoid error when tag doesn't exist
       let { data: tag, error: findError } = await this.supabase
@@ -4551,6 +4609,8 @@ Respond ONLY with valid JSON in this exact format:
         .eq('user_id', this.user.id)
         .maybeSingle();
 
+      console.log('Find tag result:', { tag, findError });
+
       if (findError) {
         console.error('Error finding tag:', findError);
         continue;
@@ -4558,11 +4618,14 @@ Respond ONLY with valid JSON in this exact format:
 
       if (!tag) {
         // Create new tag
+        console.log('Creating new tag:', normalizedTag);
         const { data: newTag, error: createError } = await this.supabase
           .from('tags')
           .insert([{ name: normalizedTag, user_id: this.user.id }])
           .select()
           .single();
+
+        console.log('Create tag result:', { newTag, createError });
 
         if (createError) {
           console.error('Error creating tag:', createError);
@@ -4572,13 +4635,129 @@ Respond ONLY with valid JSON in this exact format:
       }
 
       // Link tag to save
+      console.log('Linking tag to save:', { saveId, tagId: tag.id });
       const { error: linkError } = await this.supabase
         .from('save_tags')
         .insert([{ save_id: saveId, tag_id: tag.id }]);
 
       if (linkError) {
         console.error('Error linking tag to save:', linkError);
+      } else {
+        console.log('Successfully linked tag:', normalizedTag);
       }
+    }
+  }
+
+  // ==================== Auto-Enrichment ====================
+
+  /**
+   * Check for recent saves that need auto-enrichment and process them
+   * Uses the Fast tier to minimize cost/latency
+   */
+  async autoEnrichRecentSaves() {
+    // Check if auto-enrich is enabled
+    const autoEnrichEnabled = localStorage.getItem('stash-ai-auto-enrich') === 'true';
+    if (!autoEnrichEnabled) return;
+
+    // Check if we have an API key configured
+    const config = this.getAIConfig();
+    if (!config.hasKey) return;
+
+    // Find recent saves (last 24 hours) without ai_metadata and without published_at
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: unenrichedSaves, error } = await this.supabase
+      .from('saves')
+      .select('id, title, content, excerpt, site_name, published_at, ai_metadata, content_type')
+      .gt('created_at', oneDayAgo)
+      .is('ai_metadata', null)
+      .eq('content_type', 'article')
+      .limit(5); // Process max 5 at a time to avoid overwhelming the API
+
+    if (error || !unenrichedSaves?.length) return;
+
+    console.log(`Auto-enriching ${unenrichedSaves.length} recent saves...`);
+
+    // Process each in background without blocking UI
+    for (const save of unenrichedSaves) {
+      try {
+        await this.autoEnrichSingleSave(save, config);
+      } catch (err) {
+        console.error('Auto-enrich failed for:', save.title, err);
+      }
+    }
+
+    // Refresh tags list after auto-enrichment
+    this.loadTags();
+  }
+
+  /**
+   * Auto-enrich a single save - lightweight version using Fast tier
+   * Extracts: publication date, basic tags
+   */
+  async autoEnrichSingleSave(save, config) {
+    // Build a minimal prompt for fast processing
+    const contentToAnalyze = `Title: ${save.title || 'Untitled'}
+Source: ${save.site_name || 'Unknown'}
+Content: ${(save.content || save.excerpt || '').substring(0, 3000)}`;
+
+    const prompt = `Extract from this article:
+1. Publication date (as ISO date like "2024-01-15" or null if not found)
+2. 3-5 relevant tags for categorization (lowercase, single words or short phrases)
+
+${contentToAnalyze}
+
+Respond ONLY with JSON:
+{"published_at": "2024-01-15", "tags": ["tag1", "tag2"]}`;
+
+    // Force use of fast tier for auto-enrichment
+    const fastModel = resolveModelForTier(config.provider, 'fast');
+
+    let result;
+    try {
+      if (config.provider === 'claude') {
+        result = await this.callClaudeAPI(prompt, config.apiKey, fastModel, 256);
+      } else {
+        result = await this.callOpenAIAPI(prompt, config.apiKey, fastModel, 256);
+      }
+    } catch (err) {
+      console.error('Auto-enrich API error:', err);
+      return;
+    }
+
+    console.log('Auto-enrich result for', save.title, ':', result);
+
+    // Build update object
+    const updateData = {
+      ai_metadata: {
+        tags: result.tags || [],
+        auto_enriched: true,
+        enriched_at: new Date().toISOString(),
+      },
+    };
+
+    // Add publication date if found and we don't have one
+    if (result.published_at && !save.published_at) {
+      const parsedDate = new Date(result.published_at);
+      if (!isNaN(parsedDate.getTime())) {
+        updateData.published_at = parsedDate.toISOString();
+      }
+    }
+
+    // Update in database
+    const { error: updateError } = await this.supabase
+      .from('saves')
+      .update(updateData)
+      .eq('id', save.id);
+
+    if (updateError) {
+      console.error('Auto-enrich update error:', updateError);
+      return;
+    }
+
+    // Add tags to the save
+    if (result.tags?.length > 0) {
+      await this.addTagsToSave(save.id, result.tags);
     }
   }
 
