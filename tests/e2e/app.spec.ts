@@ -63,9 +63,7 @@ test.describe('Stash Static Assets', () => {
 
 // Theme toggle tests - these require the main screen to be visible (authenticated)
 // Skipped in CI since we can't authenticate with mock credentials
-test.describe('Stash Authenticated Features', () => {
-  test.skip(({ browserName }) => true, 'Skipped: requires real Supabase credentials');
-
+test.describe.skip('Stash Authenticated Features', () => {
   test('should have theme toggle in main screen', async ({ page }) => {
     await page.goto('/');
     const themeToggle = page.locator('.theme-toggle');
