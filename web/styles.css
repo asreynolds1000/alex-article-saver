@@ -3691,6 +3691,12 @@ input, select {
   display: inline-block;
 }
 
+.book-card-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 /* Books grouped by year */
 .books-year-section {
   margin-bottom: 32px;

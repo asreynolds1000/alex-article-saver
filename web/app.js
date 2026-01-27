@@ -936,9 +936,15 @@ class StashApp {
     const savedDate = new Date(save.created_at).toLocaleDateString();
     const publishedDate = save.published_at ? new Date(save.published_at).toLocaleDateString() : null;
 
-    // Show published date if available, otherwise saved date
-    const displayDate = publishedDate || savedDate;
-    const dateLabel = publishedDate ? 'Published' : 'Saved';
+    // Build date display - show both if published date exists
+    let dateDisplay;
+    if (publishedDate && publishedDate !== savedDate) {
+      dateDisplay = `<span class="save-card-date">Published ${publishedDate} · Saved ${savedDate}</span>`;
+    } else if (publishedDate) {
+      dateDisplay = `<span class="save-card-date">Published ${publishedDate}</span>`;
+    } else {
+      dateDisplay = `<span class="save-card-date">Saved ${savedDate}</span>`;
+    }
 
     if (isHighlight) {
       return `
@@ -948,7 +954,7 @@ class StashApp {
             <div class="save-card-highlight">"${this.escapeHtml(save.highlight)}"</div>
             <div class="save-card-title">${this.escapeHtml(save.title || 'Untitled')}</div>
             <div class="save-card-meta">
-              <span class="save-card-date">${savedDate}</span>
+              ${dateDisplay}
             </div>
           </div>
         </div>
@@ -963,7 +969,7 @@ class StashApp {
           <div class="save-card-title">${this.escapeHtml(save.title || 'Untitled')}</div>
           <div class="save-card-excerpt">${this.escapeHtml(save.excerpt || '')}</div>
           <div class="save-card-meta">
-            <span class="save-card-date" title="${dateLabel} ${displayDate}">${displayDate}</span>
+            ${dateDisplay}
           </div>
         </div>
       </div>
@@ -2861,11 +2867,23 @@ class StashApp {
 
   renderBookCard(book) {
     const author = book.author || book.site_name || 'Unknown Author';
+    const savedDate = new Date(book.created_at).toLocaleDateString();
+    const publishedDate = book.published_at ? new Date(book.published_at).toLocaleDateString() : null;
     let yearRead = '';
     try {
       const content = JSON.parse(book.content);
       yearRead = content.metadata?.yearRead || '';
     } catch (e) {}
+
+    // Build date display for books
+    let dateDisplay = '';
+    if (publishedDate && publishedDate !== savedDate) {
+      dateDisplay = `<div class="book-card-date">Published ${publishedDate} · Saved ${savedDate}</div>`;
+    } else if (publishedDate) {
+      dateDisplay = `<div class="book-card-date">Published ${publishedDate}</div>`;
+    } else {
+      dateDisplay = `<div class="book-card-date">Saved ${savedDate}</div>`;
+    }
 
     return `
       <div class="book-card" data-id="${book.id}">
@@ -2877,6 +2895,7 @@ class StashApp {
           <div class="book-card-title" title="${this.escapeHtml(book.title)}">${this.escapeHtml(book.title)}</div>
           <div class="book-card-author">${this.escapeHtml(author)}</div>
           ${yearRead ? `<span class="book-card-year">${yearRead}</span>` : ''}
+          ${dateDisplay}
         </div>
       </div>
     `;
@@ -3790,7 +3809,18 @@ ${transcript.substring(0, 10000)}${transcript.length > 10000 ? '\n\n[... transcr
           </div>
         </div>
         <div class="kindle-highlights-list">
-          ${show.episodes.map(ep => `
+          ${show.episodes.map(ep => {
+            const savedDate = new Date(ep.created_at).toLocaleDateString();
+            const publishedDate = ep.published_at ? new Date(ep.published_at).toLocaleDateString() : null;
+            let dateDisplay;
+            if (publishedDate && publishedDate !== savedDate) {
+              dateDisplay = `Published ${publishedDate} · Saved ${savedDate}`;
+            } else if (publishedDate) {
+              dateDisplay = `Published ${publishedDate}`;
+            } else {
+              dateDisplay = `Saved ${savedDate}`;
+            }
+            return `
             <div class="kindle-highlight-card podcast-episode-card" data-id="${ep.id}" style="border-left-color: var(--primary);">
               <div class="kindle-highlight-text" style="font-style: normal; font-weight: 600;">
                 ${this.escapeHtml(ep.title || 'Untitled Episode')}
@@ -3807,10 +3837,10 @@ ${transcript.substring(0, 10000)}${transcript.length > 10000 ? '\n\n[... transcr
                 </div>
               ` : ''}
               <div class="kindle-highlight-meta">
-                ${new Date(ep.created_at).toLocaleDateString()}
+                ${dateDisplay}
               </div>
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
       </div>
     `;
