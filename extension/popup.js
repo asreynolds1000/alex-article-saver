@@ -11,9 +11,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const savesList = document.getElementById('saves-list');
   const openAppLink = document.getElementById('open-app-link');
 
+  const settingsBtn = document.getElementById('settings-btn');
+
   // Single-user mode - skip auth, go straight to main view
   showMainView();
   loadRecentSaves();
+
+  // Settings button - open web app settings
+  settingsBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: `${CONFIG.WEB_APP_URL}#settings` });
+  });
 
   function showAuthView() {
     authView.classList.remove('hidden');
@@ -91,15 +98,41 @@ document.addEventListener('DOMContentLoaded', async () => {
       Saving...
     `;
 
-    await chrome.runtime.sendMessage({ action: 'savePage' });
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'savePage' });
 
-    savePageBtn.disabled = false;
-    savePageBtn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-      Saved!
-    `;
+      savePageBtn.disabled = false;
+
+      if (response?.success) {
+        savePageBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Saved!
+        `;
+      } else {
+        savePageBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+          Failed
+        `;
+        console.error('Save failed:', response?.error);
+      }
+    } catch (err) {
+      savePageBtn.disabled = false;
+      savePageBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+        Failed
+      `;
+      console.error('Save error:', err);
+    }
 
     setTimeout(() => {
       savePageBtn.innerHTML = `
@@ -111,7 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         Save This Page
       `;
       loadRecentSaves();
-    }, 1500);
+    }, 2000);
   });
 
   // Load recent saves

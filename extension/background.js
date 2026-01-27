@@ -116,7 +116,7 @@ async function saveHighlight(tab, selectionText) {
   }
 }
 
-// Save full page
+// Save full page - returns { success, error } for popup feedback
 async function savePage(tab) {
   try {
     console.log('savePage called for:', tab.url);
@@ -163,14 +163,18 @@ async function savePage(tab) {
     chrome.tabs.sendMessage(tab.id, {
       action: 'showToast',
       message: 'Page saved!',
-    });
+    }).catch(() => {}); // Ignore if content script not available
+
+    return { success: true };
   } catch (err) {
     console.error('Save page failed:', err);
     chrome.tabs.sendMessage(tab.id, {
       action: 'showToast',
       message: 'Failed to save: ' + err.message,
       isError: true,
-    });
+    }).catch(() => {}); // Ignore if content script not available
+
+    return { success: false, error: err.message };
   }
 }
 
@@ -179,8 +183,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'savePage') {
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       if (tabs[0]) {
-        await savePage(tabs[0]);
-        sendResponse({ success: true });
+        const result = await savePage(tabs[0]);
+        sendResponse(result);
+      } else {
+        sendResponse({ success: false, error: 'No active tab found' });
       }
     });
     return true;
