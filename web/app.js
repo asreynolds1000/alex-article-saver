@@ -99,6 +99,13 @@ import {
   showAIJobsModal,
   hideAIJobsModal,
   bindModalCloseEvents,
+  showBulkBookImportModal,
+  hideBulkBookImportModal,
+  resetBulkBookImportModal,
+  showBulkImportStepReview,
+  showBulkImportStepPaste,
+  setParsedBulkBooks,
+  getParsedBulkBooks,
 } from './ui/modals.js';
 
 import {
@@ -126,6 +133,7 @@ import {
   renderRediscoveryCard,
   renderApplePodcastItem,
   renderImportBookItem,
+  renderBulkImportBook,
 } from './ui/renders.js';
 
 class StashApp {
@@ -652,6 +660,33 @@ class StashApp {
       });
       document.getElementById('book-clear-selection').addEventListener('click', () => {
         this.clearBookSelection();
+      });
+    }
+
+    // Bulk Book Import Modal
+    const bulkBookImportModal = document.getElementById('bulk-book-import-modal');
+    if (bulkBookImportModal) {
+      document.getElementById('bulk-book-import-btn').addEventListener('click', () => {
+        this.showBulkBookImportModal();
+      });
+
+      bulkBookImportModal.querySelector('.modal-overlay').addEventListener('click', () => {
+        this.hideBulkBookImportModal();
+      });
+      bulkBookImportModal.querySelector('.modal-close-btn').addEventListener('click', () => {
+        this.hideBulkBookImportModal();
+      });
+      document.getElementById('bulk-import-cancel-btn').addEventListener('click', () => {
+        this.hideBulkBookImportModal();
+      });
+      document.getElementById('bulk-import-back-btn').addEventListener('click', () => {
+        showBulkImportStepPaste();
+      });
+      document.getElementById('bulk-import-parse-btn').addEventListener('click', () => {
+        this.parseBulkBookList();
+      });
+      document.getElementById('bulk-import-confirm-btn').addEventListener('click', () => {
+        this.importSelectedBooks();
       });
     }
 
@@ -2846,6 +2881,323 @@ class StashApp {
       console.error('Error saving book:', error);
       status.textContent = 'Error saving book. Please try again.';
       status.className = 'book-status error';
+    }
+  }
+
+  // ==================== Bulk Book Import Methods ====================
+
+  showBulkBookImportModal() {
+    showBulkBookImportModal();
+  }
+
+  hideBulkBookImportModal() {
+    hideBulkBookImportModal();
+  }
+
+  async parseBulkBookList() {
+    const textarea = document.getElementById('bulk-book-list');
+    const status = document.getElementById('bulk-import-status');
+    const results = document.getElementById('bulk-import-results');
+    const text = textarea.value.trim();
+
+    if (!text) {
+      status.textContent = 'Please paste a list of books';
+      status.className = 'bulk-import-status error';
+      status.classList.remove('hidden');
+      return;
+    }
+
+    // Check for AI config
+    const aiConfig = getAIConfig();
+    if (!aiConfig.hasKey) {
+      status.textContent = 'Please configure an API key in Settings → AI';
+      status.className = 'bulk-import-status error';
+      status.classList.remove('hidden');
+      return;
+    }
+
+    // Show loading state
+    results.innerHTML = `
+      <div class="bulk-import-loading">
+        <div class="spinner"></div>
+        <span>Parsing your book list with AI...</span>
+      </div>
+    `;
+    showBulkImportStepReview();
+    status.classList.add('hidden');
+
+    try {
+      // Call AI to parse the book list
+      const prompt = `Extract books from this text and return ONLY a JSON array. Each book should have: title (string), author (string or null), yearRead (number or null).
+
+Rules:
+- Year headers (like "2026" or "2025:") indicate the year for following books
+- Authors may appear after "-", "by", or in parentheses
+- Expand obvious author shorthand (e.g., "Lewis" after "C.S. Lewis" becomes "C.S. Lewis")
+- If no author is mentioned, set author to null
+- If no year is apparent, set yearRead to null
+
+Return ONLY the JSON array, no explanation or markdown. Example output:
+[{"title":"The Great Gatsby","author":"F. Scott Fitzgerald","yearRead":2024}]
+
+Text to parse:
+${text}`;
+
+      const result = await callAIRaw(prompt, aiConfig, 4000);
+
+      // Parse the JSON response
+      let parsedBooks;
+      try {
+        // Try to extract JSON from the response
+        const jsonMatch = result.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          parsedBooks = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('No JSON array found in response');
+        }
+      } catch (parseError) {
+        console.error('Error parsing AI response:', parseError, result);
+        throw new Error('Failed to parse AI response. Please try again.');
+      }
+
+      if (!Array.isArray(parsedBooks) || parsedBooks.length === 0) {
+        status.textContent = 'No books found in the text. Please check your input.';
+        status.className = 'bulk-import-status error';
+        status.classList.remove('hidden');
+        showBulkImportStepPaste();
+        return;
+      }
+
+      // Get existing books from library to check for duplicates
+      const { data: existingBooks } = await this.supabase
+        .from('saves')
+        .select('title, author')
+        .eq('content_type', 'book');
+
+      const existingTitles = new Set(
+        (existingBooks || []).map(b => b.title.toLowerCase().trim())
+      );
+
+      // Find duplicates within the parsed list (same book, different years)
+      const titleYearMap = {};
+      parsedBooks.forEach((book, idx) => {
+        const key = book.title.toLowerCase().trim();
+        if (!titleYearMap[key]) {
+          titleYearMap[key] = [];
+        }
+        titleYearMap[key].push({ idx, year: book.yearRead });
+      });
+
+      // Initialize books with selection state and match search
+      const booksWithMatches = await Promise.all(
+        parsedBooks.map(async (book, index) => {
+          const key = book.title.toLowerCase().trim();
+          const duplicateEntries = titleYearMap[key].filter(e => e.idx !== index);
+          const duplicateYears = duplicateEntries.map(e => e.year).filter(Boolean);
+
+          // Search Google Books
+          let matches = [];
+          try {
+            const searchQuery = book.author
+              ? `${book.title} ${book.author}`
+              : book.title;
+            const response = await fetch(
+              `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(searchQuery)}&maxResults=3`
+            );
+            const data = await response.json();
+            matches = data.items || [];
+          } catch (e) {
+            console.error('Error searching Google Books:', e);
+          }
+
+          return {
+            ...book,
+            selected: true,
+            selectedMatchId: matches[0]?.id || 'no-match',
+            matches,
+            warnings: {
+              existing: existingTitles.has(key),
+              duplicateYears: duplicateYears.length > 0 ? duplicateYears : null,
+            },
+          };
+        })
+      );
+
+      // Store parsed books
+      setParsedBulkBooks(booksWithMatches);
+
+      // Render results
+      this.renderBulkImportResults(booksWithMatches);
+
+      // Update counts
+      this.updateBulkImportCounts();
+
+    } catch (error) {
+      console.error('Error parsing book list:', error);
+      status.textContent = error.message || 'Error parsing book list. Please try again.';
+      status.className = 'bulk-import-status error';
+      status.classList.remove('hidden');
+      showBulkImportStepPaste();
+    }
+  }
+
+  renderBulkImportResults(books) {
+    const results = document.getElementById('bulk-import-results');
+
+    results.innerHTML = books
+      .map((book, index) =>
+        renderBulkImportBook(book, index, book.matches, book.warnings)
+      )
+      .join('');
+
+    // Bind checkbox events
+    results.querySelectorAll('.bulk-import-book-item').forEach((item) => {
+      const checkbox = item.querySelector('input[type="checkbox"]');
+      const index = parseInt(item.dataset.index);
+
+      checkbox.addEventListener('change', () => {
+        const books = getParsedBulkBooks();
+        books[index].selected = checkbox.checked;
+        item.classList.toggle('selected', checkbox.checked);
+        setParsedBulkBooks(books);
+        this.updateBulkImportCounts();
+      });
+
+      // Bind radio button events for match selection
+      item.querySelectorAll('input[type="radio"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+          const books = getParsedBulkBooks();
+          books[index].selectedMatchId = radio.value;
+          setParsedBulkBooks(books);
+
+          // Update visual selection
+          item.querySelectorAll('.bulk-import-match-option').forEach((opt) => {
+            opt.classList.toggle('selected', opt.dataset.matchId === radio.value);
+          });
+        });
+      });
+    });
+  }
+
+  updateBulkImportCounts() {
+    const books = getParsedBulkBooks();
+    const parsed = document.getElementById('bulk-import-parsed-count');
+    const selected = document.getElementById('bulk-import-selected-count');
+
+    if (parsed) parsed.textContent = books.length;
+    if (selected) selected.textContent = books.filter((b) => b.selected).length;
+  }
+
+  async importSelectedBooks() {
+    const books = getParsedBulkBooks();
+    const selectedBooks = books.filter((b) => b.selected);
+
+    if (selectedBooks.length === 0) {
+      const status = document.getElementById('bulk-import-status');
+      status.textContent = 'No books selected for import';
+      status.className = 'bulk-import-status error';
+      status.classList.remove('hidden');
+      return;
+    }
+
+    const status = document.getElementById('bulk-import-status');
+    const confirmBtn = document.getElementById('bulk-import-confirm-btn');
+    confirmBtn.disabled = true;
+
+    let imported = 0;
+    let errors = 0;
+
+    // Show progress
+    status.innerHTML = `
+      <div class="bulk-import-progress">
+        <div class="bulk-import-progress-bar">
+          <div class="bulk-import-progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="bulk-import-progress-text">0 / ${selectedBooks.length}</div>
+      </div>
+    `;
+    status.className = 'bulk-import-status info';
+    status.classList.remove('hidden');
+
+    const progressFill = status.querySelector('.bulk-import-progress-fill');
+    const progressText = status.querySelector('.bulk-import-progress-text');
+
+    for (let i = 0; i < selectedBooks.length; i++) {
+      const book = selectedBooks[i];
+
+      try {
+        // Get match data if selected
+        let matchData = null;
+        if (book.selectedMatchId && book.selectedMatchId !== 'no-match') {
+          matchData = book.matches.find((m) => m.id === book.selectedMatchId);
+        }
+
+        const info = matchData?.volumeInfo || {};
+
+        // Build book data
+        const bookData = {
+          user_id: this.user.id,
+          title: info.title || book.title,
+          author: info.authors?.join(', ') || book.author || null,
+          content_type: 'book',
+          source: 'bulk-import',
+          site_name: info.authors?.join(', ') || book.author || '',
+          excerpt: info.description || '',
+          content: JSON.stringify({
+            description: info.description || '',
+            notes: '',
+            metadata: {
+              googleId: matchData?.id || null,
+              categories: info.categories?.join(', ') || '',
+              pageCount: info.pageCount || null,
+              publishedDate: info.publishedDate || null,
+              yearRead: book.yearRead || new Date().getFullYear(),
+              dateRead: null,
+              userNotes: '',
+            },
+          }),
+          image_url: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+          url: matchData?.id
+            ? `https://books.google.com/books?id=${matchData.id}`
+            : null,
+          is_archived: false,
+          is_favorite: false,
+        };
+
+        const { error } = await this.supabase.from('saves').insert([bookData]);
+
+        if (error) throw error;
+
+        imported++;
+      } catch (error) {
+        console.error('Error importing book:', book.title, error);
+        errors++;
+      }
+
+      // Update progress
+      const percent = Math.round(((i + 1) / selectedBooks.length) * 100);
+      progressFill.style.width = `${percent}%`;
+      progressText.textContent = `${i + 1} / ${selectedBooks.length}`;
+    }
+
+    // Show final status
+    confirmBtn.disabled = false;
+
+    if (errors === 0) {
+      status.innerHTML = `Successfully imported ${imported} books!`;
+      status.className = 'bulk-import-status success';
+      this.showToast(`Imported ${imported} books`, 'success');
+
+      setTimeout(() => {
+        this.hideBulkBookImportModal();
+        if (this.currentView === 'books') {
+          this.loadBooks();
+        }
+      }, 1500);
+    } else {
+      status.innerHTML = `Imported ${imported} books. ${errors} failed.`;
+      status.className = 'bulk-import-status error';
+      this.showToast(`Imported ${imported} books, ${errors} failed`, 'error');
     }
   }
 

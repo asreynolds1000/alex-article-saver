@@ -317,6 +317,95 @@ export function hideAIJobsModal() {
   hideModal('ai-jobs-modal');
 }
 
+// ==================== Bulk Book Import Modal ====================
+
+// Store parsed books data in module scope
+let parsedBulkBooks = [];
+
+export function showBulkBookImportModal() {
+  showModal('bulk-book-import-modal');
+  resetBulkBookImportModal();
+  updateBulkImportAIHint();
+}
+
+export function hideBulkBookImportModal() {
+  hideModal('bulk-book-import-modal');
+  resetBulkBookImportModal();
+}
+
+export function resetBulkBookImportModal() {
+  // Reset to step 1
+  const stepPaste = document.getElementById('bulk-import-step-paste');
+  const stepReview = document.getElementById('bulk-import-step-review');
+  const parseBtn = document.getElementById('bulk-import-parse-btn');
+  const confirmBtn = document.getElementById('bulk-import-confirm-btn');
+  const backBtn = document.getElementById('bulk-import-back-btn');
+  const status = document.getElementById('bulk-import-status');
+  const textarea = document.getElementById('bulk-book-list');
+  const results = document.getElementById('bulk-import-results');
+
+  if (stepPaste) stepPaste.classList.remove('hidden');
+  if (stepReview) stepReview.classList.add('hidden');
+  if (parseBtn) parseBtn.classList.remove('hidden');
+  if (confirmBtn) confirmBtn.classList.add('hidden');
+  if (backBtn) backBtn.classList.add('hidden');
+  if (status) status.classList.add('hidden');
+  if (textarea) textarea.value = '';
+  if (results) results.innerHTML = '';
+
+  parsedBulkBooks = [];
+}
+
+export function updateBulkImportAIHint() {
+  const hint = document.getElementById('bulk-import-ai-hint');
+  if (!hint) return;
+
+  const config = getAIConfig();
+  if (config.hasKey) {
+    hint.textContent = `Using ${config.provider === 'claude' ? 'Claude' : 'OpenAI'} for parsing`;
+    hint.style.color = 'var(--success)';
+  } else {
+    hint.textContent = 'Requires API key in AI Settings';
+    hint.style.color = 'var(--text-muted)';
+  }
+}
+
+export function showBulkImportStepReview() {
+  const stepPaste = document.getElementById('bulk-import-step-paste');
+  const stepReview = document.getElementById('bulk-import-step-review');
+  const parseBtn = document.getElementById('bulk-import-parse-btn');
+  const confirmBtn = document.getElementById('bulk-import-confirm-btn');
+  const backBtn = document.getElementById('bulk-import-back-btn');
+
+  if (stepPaste) stepPaste.classList.add('hidden');
+  if (stepReview) stepReview.classList.remove('hidden');
+  if (parseBtn) parseBtn.classList.add('hidden');
+  if (confirmBtn) confirmBtn.classList.remove('hidden');
+  if (backBtn) backBtn.classList.remove('hidden');
+}
+
+export function showBulkImportStepPaste() {
+  const stepPaste = document.getElementById('bulk-import-step-paste');
+  const stepReview = document.getElementById('bulk-import-step-review');
+  const parseBtn = document.getElementById('bulk-import-parse-btn');
+  const confirmBtn = document.getElementById('bulk-import-confirm-btn');
+  const backBtn = document.getElementById('bulk-import-back-btn');
+
+  if (stepPaste) stepPaste.classList.remove('hidden');
+  if (stepReview) stepReview.classList.add('hidden');
+  if (parseBtn) parseBtn.classList.remove('hidden');
+  if (confirmBtn) confirmBtn.classList.add('hidden');
+  if (backBtn) backBtn.classList.add('hidden');
+}
+
+export function setParsedBulkBooks(books) {
+  parsedBulkBooks = books;
+}
+
+export function getParsedBulkBooks() {
+  return parsedBulkBooks;
+}
+
 // ==================== Bind Modal Close Events ====================
 
 /**
@@ -344,6 +433,9 @@ export function bindModalCloseEvents(callbacks) {
 
   // AI Jobs modal
   bindModalClose('ai-jobs-modal', callbacks.aiJobs || hideAIJobsModal);
+
+  // Bulk Book Import modal
+  bindModalClose('bulk-book-import-modal', callbacks.bulkBookImport || hideBulkBookImportModal);
 }
 
 function bindModalClose(modalId, hideCallback) {

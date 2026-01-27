@@ -155,6 +155,7 @@
         <div class="nav-section">
           <h3>Add Content</h3>
           <button class="add-folder-btn" id="book-add-btn">Add Book</button>
+          <button class="add-folder-btn" id="bulk-book-import-btn">Import Books</button>
           <button class="add-folder-btn" id="podcast-add-btn">Add Podcast Transcript</button>
           <button class="add-folder-btn" id="kindle-import-btn">Import Kindle</button>
           <button class="add-folder-btn" id="apple-podcasts-import-btn">Import Apple Podcasts</button>
@@ -969,6 +970,60 @@
         <div class="modal-footer">
           <button class="btn secondary" id="book-cancel-btn">Cancel</button>
           <button class="btn primary" id="book-save-btn">Save Book</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Book Import Modal -->
+    <div id="bulk-book-import-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content bulk-book-import-modal-content">
+        <div class="modal-header">
+          <h2>Import Books</h2>
+          <button class="btn icon modal-close-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Step 1: Paste list -->
+          <div id="bulk-import-step-paste" class="bulk-import-step">
+            <p class="bulk-import-instructions">Paste a list of books you've read. The AI will extract titles, authors, and years. Supports various formats:</p>
+            <div class="bulk-import-examples">
+              <code>2026<br>King: A Life - Jonathan Eig<br>Never Split the Difference</code>
+            </div>
+            <textarea id="bulk-book-list" placeholder="Paste your book list here...
+
+Example formats:
+2026
+King: A Life - Jonathan Eig
+Never Split the Difference
+
+Or:
+1. The Great Gatsby by F. Scott Fitzgerald (2024)
+2. 1984 by George Orwell (2024)"></textarea>
+            <div id="bulk-import-ai-hint" class="bulk-import-ai-hint"></div>
+          </div>
+
+          <!-- Step 2: Review & match -->
+          <div id="bulk-import-step-review" class="bulk-import-step hidden">
+            <div class="bulk-import-summary">
+              <span id="bulk-import-parsed-count">0</span> books parsed
+              <span class="bulk-import-separator">|</span>
+              <span id="bulk-import-selected-count">0</span> selected
+            </div>
+            <div id="bulk-import-results" class="bulk-import-results"></div>
+          </div>
+
+          <div id="bulk-import-status" class="bulk-import-status hidden"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary" id="bulk-import-cancel-btn">Cancel</button>
+          <button class="btn secondary hidden" id="bulk-import-back-btn">Back</button>
+          <button class="btn primary" id="bulk-import-parse-btn">Parse with AI</button>
+          <button class="btn primary hidden" id="bulk-import-confirm-btn">Import Selected</button>
         </div>
       </div>
     </div>

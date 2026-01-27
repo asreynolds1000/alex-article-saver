@@ -451,3 +451,84 @@ export function renderImportBookItem(book) {
     </div>
   `;
 }
+
+/**
+ * Render a bulk import book item with Google Books matches
+ * @param {Object} book - Parsed book with title, author, yearRead
+ * @param {number} index - Index in the list
+ * @param {Array} matches - Google Books matches for this book
+ * @param {Object} warnings - Warning flags (existing, duplicateYears)
+ * @returns {string} HTML string
+ */
+export function renderBulkImportBook(book, index, matches = [], warnings = {}) {
+  const isSelected = book.selected !== false;
+  const selectedMatchId = book.selectedMatchId || (matches[0]?.id || 'no-match');
+
+  // Warning badges
+  let warningBadges = '';
+  if (warnings.existing) {
+    warningBadges += `<span class="bulk-import-warning existing">Already in library</span>`;
+  }
+  if (warnings.duplicateYears && warnings.duplicateYears.length > 0) {
+    warningBadges += `<span class="bulk-import-warning duplicate">Also listed for: ${warnings.duplicateYears.join(', ')}</span>`;
+  }
+
+  // Match options
+  let matchOptionsHtml = '';
+  if (matches.length > 0) {
+    matchOptionsHtml = matches.slice(0, 3).map((match, matchIdx) => {
+      const info = match.volumeInfo || {};
+      const thumbnail = info.imageLinks?.thumbnail?.replace('http:', 'https:') || '';
+      const authors = info.authors?.join(', ') || 'Unknown Author';
+      const year = info.publishedDate?.split('-')[0] || '';
+      const isMatchSelected = selectedMatchId === match.id;
+
+      return `
+        <label class="bulk-import-match-option ${isMatchSelected ? 'selected' : ''}" data-match-id="${match.id}">
+          <input type="radio" name="match-${index}" value="${match.id}" ${isMatchSelected ? 'checked' : ''}>
+          ${thumbnail
+            ? `<img class="bulk-import-match-cover" src="${thumbnail}" alt="">`
+            : `<div class="bulk-import-match-cover-placeholder">📚</div>`
+          }
+          <div class="bulk-import-match-info">
+            <div class="bulk-import-match-title">${escapeHtml(info.title || book.title)}</div>
+            <div class="bulk-import-match-author">${escapeHtml(authors)}</div>
+            ${year ? `<div class="bulk-import-match-year">${year}</div>` : ''}
+          </div>
+        </label>
+      `;
+    }).join('');
+  }
+
+  // Add "skip / no match" option
+  const isNoMatch = selectedMatchId === 'no-match' || matches.length === 0;
+  matchOptionsHtml += `
+    <label class="bulk-import-match-option no-match ${isNoMatch && matches.length > 0 ? 'selected' : ''}" data-match-id="no-match">
+      <input type="radio" name="match-${index}" value="no-match" ${isNoMatch && matches.length > 0 ? 'checked' : ''}>
+      <div class="bulk-import-match-cover-placeholder">⏭️</div>
+      <div class="bulk-import-match-info">
+        <div class="bulk-import-match-title">${matches.length === 0 ? 'No matches found' : 'Skip - add without metadata'}</div>
+      </div>
+    </label>
+  `;
+
+  return `
+    <div class="bulk-import-book-item ${isSelected ? 'selected' : ''} ${warnings.existing || warnings.duplicateYears ? 'has-warning' : ''}" data-index="${index}">
+      <div class="bulk-import-book-header">
+        <input type="checkbox" ${isSelected ? 'checked' : ''} title="Include this book">
+        <div class="bulk-import-book-parsed">
+          <div class="bulk-import-book-title">${escapeHtml(book.title)}</div>
+          ${book.author ? `<div class="bulk-import-book-author">${escapeHtml(book.author)}</div>` : ''}
+          ${book.yearRead ? `<div class="bulk-import-book-year">Year read: ${book.yearRead}</div>` : ''}
+          ${warningBadges}
+        </div>
+      </div>
+      <div class="bulk-import-matches">
+        <div class="bulk-import-matches-label">${matches.length > 0 ? 'Select a match:' : 'Google Books matches:'}</div>
+        <div class="bulk-import-match-options">
+          ${matchOptionsHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}

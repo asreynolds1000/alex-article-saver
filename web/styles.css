@@ -3798,6 +3798,334 @@ input, select {
   color: var(--danger);
 }
 
+/* ==================== Bulk Book Import Modal ==================== */
+.bulk-book-import-modal-content {
+  max-width: 700px;
+  width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.bulk-book-import-modal-content .modal-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.bulk-import-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bulk-import-instructions {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.bulk-import-examples {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bulk-import-examples code {
+  font-family: monospace;
+  white-space: pre-wrap;
+}
+
+#bulk-book-list {
+  min-height: 200px;
+  max-height: 300px;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.bulk-import-ai-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bulk-import-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.bulk-import-separator {
+  color: var(--border);
+}
+
+.bulk-import-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+/* Individual book item in bulk import */
+.bulk-import-book-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  transition: all 0.15s;
+}
+
+.bulk-import-book-item.selected {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.bulk-import-book-item.has-warning {
+  border-color: var(--warning);
+}
+
+.bulk-import-book-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.bulk-import-book-header input[type="checkbox"] {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.bulk-import-book-parsed {
+  flex: 1;
+  min-width: 0;
+}
+
+.bulk-import-book-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.bulk-import-book-author {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.bulk-import-book-year {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Warning badges */
+.bulk-import-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 6px;
+}
+
+.bulk-import-warning.existing {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+
+.bulk-import-warning.duplicate {
+  background: rgba(249, 115, 22, 0.15);
+  color: #c2410c;
+}
+
+[data-theme="dark"] .bulk-import-warning.existing {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .bulk-import-warning.duplicate {
+  background: rgba(249, 115, 22, 0.25);
+  color: #fb923c;
+}
+
+/* Google Books matches */
+.bulk-import-matches {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.bulk-import-matches-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.bulk-import-match-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bulk-import-match-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bulk-import-match-option:hover {
+  background: var(--bg-tertiary);
+}
+
+.bulk-import-match-option.selected {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.bulk-import-match-option input[type="radio"] {
+  flex-shrink: 0;
+}
+
+.bulk-import-match-cover {
+  width: 40px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+.bulk-import-match-cover-placeholder {
+  width: 40px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.bulk-import-match-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.bulk-import-match-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bulk-import-match-author {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.bulk-import-match-year {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bulk-import-match-option.no-match {
+  background: var(--bg-secondary);
+}
+
+.bulk-import-match-option.no-match .bulk-import-match-info {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Loading state */
+.bulk-import-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+.bulk-import-loading .spinner {
+  width: 24px;
+  height: 24px;
+}
+
+/* Status messages */
+.bulk-import-status {
+  padding: 12px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+.bulk-import-status.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.bulk-import-status.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.bulk-import-status.info {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+}
+
+/* Progress during import */
+.bulk-import-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+}
+
+.bulk-import-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bulk-import-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s;
+}
+
+.bulk-import-progress-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
 /* ==================== Books View ==================== */
 .books-grid {
   display: grid;
