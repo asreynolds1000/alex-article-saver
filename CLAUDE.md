@@ -192,17 +192,60 @@ The `verifyAuth()` helper validates either:
 - `SINGLE_USER_ID` - Set manually for single-user mode (your user UUID)
 - `RESEND_API_KEY` - For weekly digest emails
 
+## Recent Features (Jan 2026)
+
+- **Tag filtering**: Click tags in sidebar to filter saves; click "Tags ↗" header for full tag cloud modal with tags sized by usage
+- **Favorites view**: Heart button marks saves as favorites, new Favorites nav item shows all
+- **Dual date display**: Cards show "Published X · Saved Y" when publication date available
+- **Unified Settings modal**: Tabs for Appearance, AI, Digest, Audio settings
+- **Auto-enrich**: Optional automatic AI enrichment on save (uses Fast tier)
+- **Stats view**: Shows totals and saves-by-month chart
+
+## Known Patterns & Gotchas
+
+- **View rendering**: All views must render into `#saves-container`, not replace `.content` (Stats was breaking navigation by replacing entire content area)
+- **Event binding guards**: Always check element exists before `addEventListener()` - missing elements cause cascade failures that break subsequent bindings
+- **Tag filtering**: Uses `save_tags` join table, query pattern: get tag_id's save_ids, then filter saves array
+- **Modal state**: `currentTagFilter` stored in `lib/state.js`, cleared on view change
+
+## Audit Findings (Jan 2026)
+
+### Security (run `/threat-modeler` for details)
+| Priority | Issue | Status |
+|----------|-------|--------|
+| HIGH | XSS via Markdown - no DOMPurify | TODO |
+| HIGH | API keys in localStorage unencrypted | TODO |
+| HIGH | Single-user mode bypass | TODO |
+| MEDIUM | CORS allows any Chrome extension | TODO |
+
+### Accessibility (run `/web-design-guidelines` for details)
+| Priority | Issue | Status |
+|----------|-------|--------|
+| CRITICAL | No focus trap in modals | TODO |
+| CRITICAL | Save cards not keyboard accessible | TODO |
+| CRITICAL | Missing modal ARIA roles | TODO |
+| HIGH | Focus outlines removed | TODO |
+
+### Code Quality
+| Priority | Issue | Status |
+|----------|-------|--------|
+| CRITICAL | app.js duplicates all module code | TODO |
+| HIGH | Unused imports from services | TODO |
+| HIGH | Inconsistent error handling | TODO |
+
 ## Project Status
 
-**Completed improvements (Jan 2025):**
+**Completed improvements (Jan 2025-2026):**
 - Phase 1: Security fixes (credential protection, JWT auth, CORS restrictions, email allowlist)
 - Phase 2: Testing infrastructure (Vitest, Playwright, ESLint, GitHub Actions CI)
 - Phase 4: Modular architecture (10 new modules extracted from app.js)
+- UI improvements: Tag cloud, favorites, dual dates, unified settings
 
 **Remaining planned work:**
 - Phase 3: Type safety (JSDoc annotations, type definitions)
-- Phase 4 (cont.): Wire remaining app.js methods to modules
-- Phase 5: Documentation updates, accessibility audit
+- Phase 4 (cont.): Wire remaining app.js methods to modules (remove duplicates)
+- Phase 5: Accessibility fixes from audit
+- Phase 6: Security fixes (DOMPurify, API key encryption)
 
 **To resume work:** See `PROGRESS.md` for detailed status and next steps.
 
