@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
-  "https://web-swart-xi-99.vercel.app",
+  "https://stash.alexreynolds.com",
   "http://localhost:3000",
 ];
 

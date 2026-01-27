@@ -5,7 +5,7 @@ import { Readability } from "https://esm.sh/@mozilla/readability@0.5.0";
 
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
-  "https://web-swart-xi-99.vercel.app",
+  "https://stash.alexreynolds.com",
   "http://localhost:3000",
 ];
 

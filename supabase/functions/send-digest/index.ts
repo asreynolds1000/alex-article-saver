@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // This function is called by cron job with service role key
 // Restrict CORS to internal sources only
 const ALLOWED_ORIGINS = [
-  "https://web-swart-xi-99.vercel.app",
+  "https://stash.alexreynolds.com",
   "http://localhost:3000",
 ];
 
