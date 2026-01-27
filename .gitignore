@@ -23,8 +23,8 @@ coverage/
 
 # Config files with credentials (use .example.js templates)
 extension/config.js
-web/config.js
 config.local.js
+# Note: web/config.js is committed for Vercel deployment (credentials rotated Jan 2026)
 
 # SQL files with hardcoded user IDs
 supabase/single-user-rls-fix.sql
