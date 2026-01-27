@@ -408,6 +408,114 @@ input, select {
   border-top: 1px solid var(--border);
 }
 
+/* Sticky footer for Sign Out */
+.sidebar-footer-sticky {
+  position: sticky;
+  bottom: 0;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-footer-sticky .signout-btn {
+  color: var(--text-muted);
+}
+
+.sidebar-footer-sticky .signout-btn:hover {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Settings Modal */
+.settings-modal-content {
+  max-width: 600px;
+  max-height: 85vh;
+}
+
+.settings-modal-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  padding-bottom: 0;
+}
+
+.settings-tab {
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+
+.settings-tab:hover {
+  color: var(--text);
+}
+
+.settings-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.settings-tab-content {
+  flex: 1;
+}
+
+.settings-tab-content.hidden {
+  display: none;
+}
+
+.settings-description {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.settings-status {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.settings-status.success {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success);
+}
+
+.settings-status.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
+.settings-credits {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.settings-credits a {
+  color: var(--text-secondary);
+}
+
+.settings-credits a:hover {
+  color: var(--primary);
+}
+
 /* Main Content */
 .main {
   flex: 1;

@@ -236,9 +236,9 @@ class StashApp {
     this.updateThemeToggle(savedTheme);
   }
 
-  toggleTheme() {
+  toggleTheme(theme = null) {
     const current = document.documentElement.getAttribute('data-theme') || 'light';
-    const newTheme = current === 'light' ? 'dark' : 'light';
+    const newTheme = theme || (current === 'light' ? 'dark' : 'light');
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('stash-theme', newTheme);
     this.updateThemeToggle(newTheme);
@@ -427,27 +427,7 @@ class StashApp {
       }
     });
 
-    // Digest Settings Modal
-    const digestModal = document.getElementById('digest-modal');
-
-    document.getElementById('digest-settings-btn').addEventListener('click', () => {
-      this.showDigestModal();
-    });
-
-    digestModal.querySelector('.modal-overlay').addEventListener('click', () => {
-      this.hideDigestModal();
-    });
-    digestModal.querySelector('.modal-close-btn').addEventListener('click', () => {
-      this.hideDigestModal();
-    });
-    document.getElementById('digest-cancel-btn').addEventListener('click', () => {
-      this.hideDigestModal();
-    });
-    document.getElementById('digest-save-btn').addEventListener('click', () => {
-      this.saveDigestPreferences();
-    });
-
-    // Toggle enabled/disabled state of options
+    // Toggle enabled/disabled state of digest options
     document.getElementById('digest-enabled').addEventListener('change', () => {
       this.updateDigestOptionsState();
     });
@@ -467,24 +447,36 @@ class StashApp {
       });
     }
 
-    // AI Settings Modal
-    const aiSettingsModal = document.getElementById('ai-settings-modal');
-    if (aiSettingsModal) {
-      document.getElementById('ai-settings-btn').addEventListener('click', () => {
-        this.showAISettingsModal();
+    // Unified Settings Modal
+    const settingsModal = document.getElementById('settings-modal');
+    if (settingsModal) {
+      document.getElementById('settings-btn').addEventListener('click', () => {
+        this.showSettingsModal();
       });
 
-      aiSettingsModal.querySelector('.modal-overlay').addEventListener('click', () => {
-        this.hideAISettingsModal();
+      settingsModal.querySelector('.modal-overlay').addEventListener('click', () => {
+        this.hideSettingsModal();
       });
-      aiSettingsModal.querySelector('.modal-close-btn').addEventListener('click', () => {
-        this.hideAISettingsModal();
+      settingsModal.querySelector('.modal-close-btn').addEventListener('click', () => {
+        this.hideSettingsModal();
       });
-      document.getElementById('ai-settings-cancel-btn').addEventListener('click', () => {
-        this.hideAISettingsModal();
+      document.getElementById('settings-cancel-btn').addEventListener('click', () => {
+        this.hideSettingsModal();
       });
-      document.getElementById('ai-settings-save-btn').addEventListener('click', () => {
-        this.saveAISettings();
+      document.getElementById('settings-save-btn').addEventListener('click', () => {
+        this.saveAllSettings();
+      });
+
+      // Tab switching
+      settingsModal.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          this.switchSettingsTab(tab.dataset.tab);
+        });
+      });
+
+      // Dark mode toggle in settings
+      document.getElementById('settings-dark-mode').addEventListener('change', (e) => {
+        this.toggleTheme(e.target.checked ? 'dark' : 'light');
       });
 
       // Update fields when provider changes
@@ -1993,18 +1985,74 @@ class StashApp {
     return renderMarkdown(text);
   }
 
-  // Digest Settings Methods
-  showDigestModal() {
-    const modal = document.getElementById('digest-modal');
+  // ==================== Unified Settings Modal ====================
+
+  showSettingsModal(tab = 'appearance') {
+    const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
+
+    // Load all settings
+    this.loadAISettings();
     this.loadDigestPreferences();
+
+    // Set dark mode checkbox to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.getElementById('settings-dark-mode').checked = isDark;
+
+    // Switch to the requested tab
+    this.switchSettingsTab(tab);
+  }
+
+  hideSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    modal.classList.add('hidden');
+    document.getElementById('ai-settings-status')?.classList.add('hidden');
+    document.getElementById('digest-status')?.classList.add('hidden');
+  }
+
+  switchSettingsTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+
+    // Update tab content visibility
+    document.querySelectorAll('.settings-tab-content').forEach(content => {
+      const contentTab = content.id.replace('settings-tab-', '');
+      content.classList.toggle('hidden', contentTab !== tabName);
+      content.classList.toggle('active', contentTab === tabName);
+    });
+  }
+
+  async saveAllSettings() {
+    // Save AI settings
+    this.saveAISettings();
+
+    // Save digest settings
+    await this.saveDigestPreferences();
+
+    // Close modal after a delay
+    setTimeout(() => this.hideSettingsModal(), 1500);
+  }
+
+  // Legacy methods for backwards compatibility
+  showDigestModal() {
+    this.showSettingsModal('digest');
   }
 
   hideDigestModal() {
-    const modal = document.getElementById('digest-modal');
-    modal.classList.add('hidden');
-    document.getElementById('digest-status').classList.add('hidden');
+    this.hideSettingsModal();
   }
+
+  showAISettingsModal() {
+    this.showSettingsModal('ai');
+  }
+
+  hideAISettingsModal() {
+    this.hideSettingsModal();
+  }
+
+  // Digest Settings Methods (kept for loading/saving)
 
   async loadDigestPreferences() {
     try {
@@ -2049,7 +2097,6 @@ class StashApp {
 
   async saveDigestPreferences() {
     const status = document.getElementById('digest-status');
-    const saveBtn = document.getElementById('digest-save-btn');
 
     const enabled = document.getElementById('digest-enabled').checked;
     const email = document.getElementById('digest-email').value.trim();
@@ -2059,20 +2106,17 @@ class StashApp {
     // Validate email if enabled
     if (enabled && !email) {
       status.textContent = 'Please enter an email address';
-      status.className = 'digest-status error';
+      status.className = 'settings-status error';
       status.classList.remove('hidden');
-      return;
+      return false;
     }
 
     if (enabled && !email.includes('@')) {
       status.textContent = 'Please enter a valid email address';
-      status.className = 'digest-status error';
+      status.className = 'settings-status error';
       status.classList.remove('hidden');
-      return;
+      return false;
     }
-
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving...';
 
     try {
       // Upsert preferences (insert or update)
@@ -2091,38 +2135,22 @@ class StashApp {
       if (error) throw error;
 
       status.textContent = enabled
-        ? 'Digest enabled! You\'ll receive emails weekly.'
-        : 'Digest disabled. You won\'t receive emails.';
-      status.className = 'digest-status success';
+        ? 'Digest settings saved!'
+        : 'Digest disabled.';
+      status.className = 'settings-status success';
       status.classList.remove('hidden');
-
-      // Close modal after delay
-      setTimeout(() => this.hideDigestModal(), 1500);
+      return true;
 
     } catch (error) {
       console.error('Error saving digest preferences:', error);
       status.textContent = 'Error saving preferences. Please try again.';
-      status.className = 'digest-status error';
+      status.className = 'settings-status error';
       status.classList.remove('hidden');
-    } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Settings';
+      return false;
     }
   }
 
   // ==================== AI Settings Methods ====================
-
-  showAISettingsModal() {
-    const modal = document.getElementById('ai-settings-modal');
-    modal.classList.remove('hidden');
-    this.loadAISettings();
-  }
-
-  hideAISettingsModal() {
-    const modal = document.getElementById('ai-settings-modal');
-    modal.classList.add('hidden');
-    document.getElementById('ai-settings-status').classList.add('hidden');
-  }
 
   loadAISettings() {
     const provider = localStorage.getItem('stash-ai-provider') || 'claude';
