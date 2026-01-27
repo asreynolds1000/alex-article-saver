@@ -1172,6 +1172,12 @@ input, select {
   gap: 8px;
 }
 
+.reading-tags .no-tags {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .add-tag-btn {
   padding: 4px 12px;
   background: none;
@@ -2921,6 +2927,19 @@ input, select {
   height: 14px;
 }
 
+.ai-enrich-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 768px) {
   .podcasts-stats {
     flex-wrap: wrap;
@@ -3866,6 +3885,21 @@ input, select {
 
 .bulk-import-separator {
   color: var(--border);
+}
+
+.bulk-import-options {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+
+.bulk-import-options .toggle-label {
+  margin-bottom: 4px;
+}
+
+.bulk-import-options .form-hint {
+  margin-left: 44px;
 }
 
 .bulk-import-results {

@@ -114,6 +114,8 @@ import {
   updateReadingProgress,
   isOpen as isReadingPaneOpen,
   getCurrentSave,
+  setEnrichingInProgress,
+  refreshSaveTags,
 } from './ui/reading-pane.js';
 
 import {
@@ -3100,6 +3102,9 @@ ${text}`;
       return;
     }
 
+    // Check if auto-enrich is enabled
+    const autoEnrich = document.getElementById('bulk-import-auto-enrich')?.checked;
+
     // Create AI job for tracking
     const job = createAIJob(`Import ${selectedBooks.length} books`, selectedBooks.length);
     updateAIJob(job.id, { status: 'processing' });
@@ -3110,6 +3115,7 @@ ${text}`;
 
     let imported = 0;
     let errors = 0;
+    const importedSaves = [];
 
     for (let i = 0; i < selectedBooks.length; i++) {
       const book = selectedBooks[i];
@@ -3153,11 +3159,16 @@ ${text}`;
           is_favorite: false,
         };
 
-        const { error } = await this.supabase.from('saves').insert([bookData]);
+        const { data, error } = await this.supabase
+          .from('saves')
+          .insert([bookData])
+          .select()
+          .single();
 
         if (error) throw error;
 
         imported++;
+        if (data) importedSaves.push(data);
       } catch (error) {
         console.error('Error importing book:', book.title, error);
         errors++;
@@ -3185,6 +3196,123 @@ ${text}`;
     // Refresh books view if currently viewing
     if (this.currentView === 'books') {
       this.loadBooks();
+    }
+
+    // Auto-enrich if enabled and we have an API key
+    if (autoEnrich && importedSaves.length > 0) {
+      const config = this.getAIConfig();
+      if (config.hasKey) {
+        this.bulkEnrichBooks(importedSaves);
+      }
+    }
+  }
+
+  /**
+   * Enrich multiple books in the background using Fast tier
+   * @param {Array} saves - Array of save objects to enrich
+   */
+  async bulkEnrichBooks(saves) {
+    const config = this.getAIConfig();
+    if (!config.hasKey) return;
+
+    // Override to use Fast tier for bulk operations
+    const fastConfig = { ...config };
+    fastConfig.tier = 'fast';
+    fastConfig.model = resolveModelForTier('fast', config.provider);
+
+    const job = createAIJob(`Enrich ${saves.length} books`, saves.length);
+    updateAIJob(job.id, { status: 'processing' });
+
+    let enriched = 0;
+    let failed = 0;
+
+    for (let i = 0; i < saves.length; i++) {
+      const save = saves[i];
+
+      try {
+        await this.runAIEnrichmentSilent(save, fastConfig);
+        enriched++;
+      } catch (error) {
+        console.error('Error enriching book:', save.title, error);
+        failed++;
+      }
+
+      updateAIJob(job.id, {
+        completedItems: i + 1,
+        progress: Math.round(((i + 1) / saves.length) * 100),
+      });
+    }
+
+    if (failed === 0) {
+      updateAIJob(job.id, { status: 'completed' });
+      this.showToast(`Enriched ${enriched} books with AI`, 'success');
+    } else {
+      updateAIJob(job.id, { status: 'completed', error: `${failed} failed` });
+    }
+
+    // Refresh tags
+    this.loadTags();
+  }
+
+  /**
+   * Run AI enrichment without UI updates (for bulk operations)
+   * @param {Object} save - Save object to enrich
+   * @param {Object} config - AI config
+   */
+  async runAIEnrichmentSilent(save, config) {
+    // Get content to analyze
+    let contentToAnalyze = '';
+
+    try {
+      const bookData = JSON.parse(save.content || '{}');
+      contentToAnalyze = `Title: ${save.title}\nAuthor: ${save.author || save.site_name || 'Unknown'}\nDescription: ${bookData.description || ''}\nNotes: ${bookData.notes || ''}`;
+    } catch (e) {
+      contentToAnalyze = save.content || save.excerpt || '';
+    }
+
+    // Get existing tags
+    const existingTagNames = this.tags.map((t) => t.name);
+    const existingTagsStr =
+      existingTagNames.length > 0
+        ? `\n\nEXISTING TAGS (prefer these): ${existingTagNames.join(', ')}`
+        : '';
+
+    const prompt = `Analyze this book and provide:
+1. 3-5 key points or takeaways (JSON array of strings)
+2. 3-7 relevant tags for categorization (JSON array of lowercase strings)
+${existingTagsStr}
+
+${contentToAnalyze}
+
+Respond ONLY with valid JSON:
+{"key_points": ["point 1", "point 2"], "tags": ["tag1", "tag2"]}`;
+
+    let result;
+    if (config.provider === 'claude') {
+      result = await this.callClaudeAPI(prompt, config.apiKey, config.model, 1024);
+    } else {
+      result = await this.callOpenAIAPI(prompt, config.apiKey, config.model, 1024);
+    }
+
+    if (result.keyPoints && !result.key_points) {
+      result.key_points = result.keyPoints;
+    }
+
+    const aiMetadata = {
+      key_points: result.key_points || [],
+      tags: result.tags || [],
+      enriched_at: new Date().toISOString(),
+    };
+
+    // Update database
+    await this.supabase
+      .from('saves')
+      .update({ ai_metadata: aiMetadata })
+      .eq('id', save.id);
+
+    // Add tags
+    if (result.tags && result.tags.length > 0) {
+      await this.addTagsToSave(save.id, result.tags);
     }
   }
 
@@ -5280,6 +5408,9 @@ Return ONLY the JSON array, no other text. Return empty array [] if no consolida
     // Create AI job
     const job = this.createAIJob(`Enrich: ${title.substring(0, 40)}${title.length > 40 ? '...' : ''}`);
 
+    // Update button to show in progress
+    setEnrichingInProgress(true);
+
     this.showToast('AI enrichment started', 'success');
 
     // Run enrichment in background
@@ -5382,6 +5513,9 @@ Respond ONLY with valid JSON in this exact format:
       // Mark job as completed
       this.updateAIJob(job.id, { status: 'completed', completedItems: 1 });
 
+      // Reset button state
+      setEnrichingInProgress(false);
+
       this.showToast('AI enrichment completed', 'success');
 
       // Refresh the reading pane if this save is still open
@@ -5390,12 +5524,14 @@ Respond ONLY with valid JSON in this exact format:
         this.openReadingPane(save);
       }
 
-      // Refresh the tags list
+      // Refresh tags in reading pane and sidebar
+      refreshSaveTags();
       this.loadTags();
 
     } catch (error) {
       console.error('AI enrichment failed:', error);
       this.updateAIJob(job.id, { status: 'failed', error: error.message || 'Unknown error' });
+      setEnrichingInProgress(false);
       this.showToast('AI enrichment failed: ' + (error.message || 'Unknown error'), 'error');
     }
   }

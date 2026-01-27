@@ -5,6 +5,9 @@ import { appState, setCurrentSave } from '../lib/state.js';
 import { escapeHtml, renderMarkdown } from '../lib/utils.js';
 import { stopAudio, initAudio } from '../services/audio.js';
 
+// Track if AI enrichment is in progress
+let enrichingInProgress = false;
+
 /**
  * Open the reading pane with a save
  * @param {Object} save - The save object to display
@@ -53,6 +56,9 @@ export function openReadingPane(save) {
   const favoriteBtn = document.getElementById('favorite-btn');
   if (archiveBtn) archiveBtn.classList.toggle('active', save.is_archived);
   if (favoriteBtn) favoriteBtn.classList.toggle('active', save.is_favorite);
+
+  // Load and display tags for this save
+  loadSaveTags(save.id);
 
   // Show pane with animation
   if (pane) {
@@ -264,6 +270,14 @@ function renderArticleContent(save) {
 }
 
 function renderAIEnrichButton(hasExisting) {
+  if (enrichingInProgress) {
+    return `
+      <button class="prettify-btn ai-enrich-btn" disabled>
+        <div class="ai-enrich-spinner"></div>
+        Enriching...
+      </button>
+    `;
+  }
   return `
     <button class="prettify-btn ai-enrich-btn" onclick="app.aiEnrichContent()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -272,6 +286,77 @@ function renderAIEnrichButton(hasExisting) {
       ${hasExisting ? 'Re-enrich with AI' : 'AI Enrich'}
     </button>
   `;
+}
+
+/**
+ * Set the enriching in progress state and update the button
+ * @param {boolean} inProgress - Whether enrichment is in progress
+ */
+export function setEnrichingInProgress(inProgress) {
+  enrichingInProgress = inProgress;
+
+  // Update the button in the reading pane
+  const btn = document.querySelector('.ai-enrich-btn');
+  if (btn) {
+    if (inProgress) {
+      btn.disabled = true;
+      btn.innerHTML = `
+        <div class="ai-enrich-spinner"></div>
+        Enriching...
+      `;
+    } else {
+      btn.disabled = false;
+      const save = appState.currentSave;
+      const hasExisting = save?.ai_metadata?.key_points?.length > 0;
+      btn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        ${hasExisting ? 'Re-enrich with AI' : 'AI Enrich'}
+      `;
+    }
+  }
+}
+
+/**
+ * Load and display tags for a save in the reading pane
+ * @param {string} saveId - The save ID
+ */
+async function loadSaveTags(saveId) {
+  const container = document.getElementById('reading-tags-list');
+  if (!container || !appState.supabase) return;
+
+  try {
+    const { data: saveTags, error } = await appState.supabase
+      .from('save_tags')
+      .select('tag_id, tags(id, name)')
+      .eq('save_id', saveId);
+
+    if (error) {
+      console.error('Error loading save tags:', error);
+      return;
+    }
+
+    if (!saveTags || saveTags.length === 0) {
+      container.innerHTML = '<span class="no-tags">No tags</span>';
+      return;
+    }
+
+    container.innerHTML = saveTags
+      .map((st) => `<span class="tag" data-id="${st.tags.id}">${escapeHtml(st.tags.name)}</span>`)
+      .join('');
+  } catch (e) {
+    console.error('Error loading save tags:', e);
+  }
+}
+
+/**
+ * Refresh tags display for the current save
+ */
+export function refreshSaveTags() {
+  if (appState.currentSave) {
+    loadSaveTags(appState.currentSave.id);
+  }
 }
 
 function renderKeyPoints(points) {
