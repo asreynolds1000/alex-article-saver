@@ -346,10 +346,13 @@ class StashApp {
       this.addFolder();
     });
 
-    // Theme toggle
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-      this.toggleTheme();
-    });
+    // Theme toggle (removed from sidebar, now in Settings modal)
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+      themeToggle.addEventListener('click', () => {
+        this.toggleTheme();
+      });
+    }
 
     // Reading progress bar
     const readingContent = document.getElementById('reading-content');
@@ -737,6 +740,8 @@ class StashApp {
       // Articles: no highlight, not a podcast, not a book
       query = query.is('highlight', null)
         .or('content_type.is.null,content_type.eq.article');
+    } else if (this.currentView === 'favorites') {
+      query = query.eq('is_favorite', true);
     } else if (this.currentView === 'archived') {
       query = query.eq('is_archived', true);
     } else if (this.currentView === 'weekly') {
@@ -1047,6 +1052,7 @@ class StashApp {
       kindle: 'Kindle Highlights',
       podcasts: 'Podcasts',
       books: 'Books',
+      favorites: 'Favorites',
       archived: 'Archived',
       weekly: 'Weekly Review',
       insights: 'Insights',
