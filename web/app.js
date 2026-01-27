@@ -466,6 +466,29 @@ class StashApp {
       tagCloudModal.querySelector('.modal-close-btn').addEventListener('click', () => {
         this.hideTagCloudModal();
       });
+
+      // Consolidate tags button
+      document.getElementById('consolidate-tags-btn').addEventListener('click', () => {
+        this.hideTagCloudModal();
+        this.showTagConsolidationModal();
+      });
+    }
+
+    // Tag Consolidation Modal
+    const consolidationModal = document.getElementById('tag-consolidation-modal');
+    if (consolidationModal) {
+      consolidationModal.querySelector('.modal-overlay').addEventListener('click', () => {
+        this.hideTagConsolidationModal();
+      });
+      consolidationModal.querySelector('.modal-close-btn').addEventListener('click', () => {
+        this.hideTagConsolidationModal();
+      });
+      document.getElementById('consolidation-cancel-btn').addEventListener('click', () => {
+        this.hideTagConsolidationModal();
+      });
+      document.getElementById('consolidation-apply-btn').addEventListener('click', () => {
+        this.applyTagConsolidation();
+      });
     }
 
     // Unified Settings Modal
@@ -4611,6 +4634,276 @@ ${transcript.substring(0, 10000)}${transcript.length > 10000 ? '\n\n[... transcr
     modal.classList.add('hidden');
   }
 
+  // Tag Consolidation
+  async showTagConsolidationModal() {
+    const modal = document.getElementById('tag-consolidation-modal');
+    const loading = document.getElementById('consolidation-loading');
+    const results = document.getElementById('consolidation-results');
+    const empty = document.getElementById('consolidation-empty');
+    const applyBtn = document.getElementById('consolidation-apply-btn');
+
+    modal.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    results.classList.add('hidden');
+    empty.classList.add('hidden');
+    applyBtn.disabled = true;
+
+    // Get tag usage counts
+    const { data: saveTags } = await this.supabase
+      .from('save_tags')
+      .select('tag_id');
+
+    const tagCounts = {};
+    (saveTags || []).forEach(st => {
+      tagCounts[st.tag_id] = (tagCounts[st.tag_id] || 0) + 1;
+    });
+
+    // Build tag list with counts for AI
+    const tagList = this.tags.map(t => ({
+      id: t.id,
+      name: t.name,
+      count: tagCounts[t.id] || 0
+    }));
+
+    if (tagList.length < 2) {
+      loading.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    // Call AI to analyze tags
+    const config = this.getAIConfig();
+    if (!config.hasKey) {
+      loading.classList.add('hidden');
+      this.showToast('Please configure AI settings first', 'error');
+      this.hideTagConsolidationModal();
+      return;
+    }
+
+    try {
+      const suggestions = await this.getTagConsolidationSuggestions(tagList, config);
+      loading.classList.add('hidden');
+
+      if (!suggestions || suggestions.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      this.pendingConsolidations = suggestions;
+      this.renderConsolidationSuggestions(suggestions, tagList);
+      results.classList.remove('hidden');
+      applyBtn.disabled = false;
+    } catch (err) {
+      console.error('Tag consolidation error:', err);
+      loading.classList.add('hidden');
+      this.showToast('Failed to analyze tags: ' + err.message, 'error');
+      this.hideTagConsolidationModal();
+    }
+  }
+
+  async getTagConsolidationSuggestions(tagList, config) {
+    const tagListStr = tagList
+      .map(t => `- "${t.name}" (${t.count} saves)`)
+      .join('\n');
+
+    const prompt = `Analyze these tags from a read-it-later app and suggest consolidations. Look for:
+1. Duplicate tags with different casing (e.g., "JavaScript" vs "javascript")
+2. Abbreviations vs full names (e.g., "AI" vs "Artificial Intelligence")
+3. Singular vs plural (e.g., "article" vs "articles")
+4. Semantically identical tags (e.g., "ML" and "Machine Learning")
+
+IMPORTANT: Only suggest merges where tags are truly the same concept. Do NOT merge related-but-different tags (e.g., keep "frontend" and "backend" separate, keep "React" and "JavaScript" separate).
+
+Current tags:
+${tagListStr}
+
+Return a JSON array of consolidation suggestions. Each suggestion should have:
+- "merge": array of tag names to merge together
+- "target": the canonical tag name to keep (prefer: more saves, proper casing, full name over abbreviation)
+- "reason": brief explanation
+
+Example response:
+[
+  {"merge": ["javascript", "JavaScript", "JS"], "target": "JavaScript", "reason": "Same language, standardize casing"},
+  {"merge": ["AI", "artificial intelligence"], "target": "AI", "reason": "Same concept, shorter form is common"}
+]
+
+Return ONLY the JSON array, no other text. Return empty array [] if no consolidations are needed.`;
+
+    const model = resolveModelForTier(config.provider, config.tier);
+
+    let response;
+    if (config.provider === 'claude') {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: model,
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+
+      if (!response.ok) throw new Error('API request failed');
+      const data = await response.json();
+      const text = data.content[0].text.trim();
+      return JSON.parse(text);
+    } else {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+        }),
+      });
+
+      if (!response.ok) throw new Error('API request failed');
+      const data = await response.json();
+      const text = data.choices[0].message.content.trim();
+      return JSON.parse(text);
+    }
+  }
+
+  renderConsolidationSuggestions(suggestions, tagList) {
+    const container = document.getElementById('consolidation-suggestions');
+    const tagMap = Object.fromEntries(tagList.map(t => [t.name.toLowerCase(), t]));
+
+    container.innerHTML = suggestions.map((s, i) => {
+      const mergeTags = s.merge.map(name => {
+        const tag = tagMap[name.toLowerCase()];
+        return tag ? { name: tag.name, count: tag.count } : { name, count: 0 };
+      });
+
+      return `
+        <div class="consolidation-suggestion" data-index="${i}">
+          <div class="consolidation-suggestion-header">
+            <input type="checkbox" checked data-index="${i}">
+            <div class="consolidation-suggestion-content">
+              <div class="consolidation-merge-tags">
+                ${mergeTags.map(t => `
+                  <span class="consolidation-tag">${this.escapeHtml(t.name)}<span class="consolidation-tag-count">(${t.count})</span></span>
+                `).join('<span class="consolidation-arrow">→</span>')}
+                <span class="consolidation-arrow">→</span>
+                <span class="consolidation-target">${this.escapeHtml(s.target)}</span>
+              </div>
+              <div class="consolidation-reason">${this.escapeHtml(s.reason)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Update apply button state when checkboxes change
+    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const anyChecked = container.querySelector('input[type="checkbox"]:checked');
+        document.getElementById('consolidation-apply-btn').disabled = !anyChecked;
+      });
+    });
+  }
+
+  hideTagConsolidationModal() {
+    const modal = document.getElementById('tag-consolidation-modal');
+    modal.classList.add('hidden');
+    this.pendingConsolidations = null;
+  }
+
+  async applyTagConsolidation() {
+    const container = document.getElementById('consolidation-suggestions');
+    const checkedIndexes = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(cb => parseInt(cb.dataset.index));
+
+    if (checkedIndexes.length === 0) return;
+
+    const applyBtn = document.getElementById('consolidation-apply-btn');
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Applying...';
+
+    let mergeCount = 0;
+
+    for (const index of checkedIndexes) {
+      const suggestion = this.pendingConsolidations[index];
+      await this.mergeTags(suggestion.merge, suggestion.target);
+      mergeCount++;
+    }
+
+    this.hideTagConsolidationModal();
+    await this.loadTags();
+    this.showToast(`Consolidated ${mergeCount} tag group${mergeCount > 1 ? 's' : ''}`, 'success');
+
+    applyBtn.textContent = 'Apply Selected Merges';
+  }
+
+  async mergeTags(tagNames, targetName) {
+    // Find or create the target tag
+    let targetTag = this.tags.find(t => t.name.toLowerCase() === targetName.toLowerCase());
+
+    if (!targetTag) {
+      // Create the target tag
+      const { data: newTag } = await this.supabase
+        .from('tags')
+        .insert({ user_id: this.user.id, name: targetName })
+        .select()
+        .single();
+      targetTag = newTag;
+    }
+
+    // Find all source tags to merge
+    const sourceTags = this.tags.filter(t =>
+      tagNames.some(name => name.toLowerCase() === t.name.toLowerCase()) &&
+      t.id !== targetTag.id
+    );
+
+    for (const sourceTag of sourceTags) {
+      // Update save_tags to point to target tag
+      // First, get all saves with the source tag
+      const { data: sourceLinks } = await this.supabase
+        .from('save_tags')
+        .select('save_id')
+        .eq('tag_id', sourceTag.id);
+
+      for (const link of (sourceLinks || [])) {
+        // Check if target tag already exists for this save
+        const { data: existing } = await this.supabase
+          .from('save_tags')
+          .select('id')
+          .eq('save_id', link.save_id)
+          .eq('tag_id', targetTag.id)
+          .maybeSingle();
+
+        if (!existing) {
+          // Add link to target tag
+          await this.supabase
+            .from('save_tags')
+            .insert({ save_id: link.save_id, tag_id: targetTag.id });
+        }
+
+        // Remove link to source tag
+        await this.supabase
+          .from('save_tags')
+          .delete()
+          .eq('save_id', link.save_id)
+          .eq('tag_id', sourceTag.id);
+      }
+
+      // Delete the source tag
+      await this.supabase
+        .from('tags')
+        .delete()
+        .eq('id', sourceTag.id);
+    }
+  }
+
   // Delegate to services/ai-jobs.js (called from init())
   // loadAIJobs() - imported function is called directly in init()
 
@@ -4668,10 +4961,17 @@ ${transcript.substring(0, 10000)}${transcript.length > 10000 ? '\n\n[... transcr
         contentToAnalyze = `Title: ${save.title}\nSource: ${save.site_name || 'Unknown'}\nContent: ${(save.content || save.excerpt || '').substring(0, 8000)}`;
       }
 
+      // Get existing tags so AI can prefer them over creating new ones
+      const existingTagNames = this.tags.map(t => t.name);
+      const existingTagsStr = existingTagNames.length > 0
+        ? `\n\nEXISTING TAGS IN THE SYSTEM (prefer these when they fit):\n${existingTagNames.join(', ')}\n\nIMPORTANT: Use existing tags from the list above when they are relevant. Only create new tags if none of the existing tags fit well.`
+        : '';
+
       const prompt = `Analyze this ${contentType} and provide:
 1. 3-5 key points or takeaways (as a JSON array of strings)
 2. 3-7 relevant tags/topics for categorization (as a JSON array of strings, lowercase, single words or short phrases)
 3. The publication date if mentioned (as ISO 8601 string like "2024-01-15" or null if not found)
+${existingTagsStr}
 
 ${contentToAnalyze}
 

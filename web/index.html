@@ -803,6 +803,47 @@
         <div class="modal-body">
           <p class="tag-cloud-hint">Click a tag to filter your saves. Tag size reflects usage.</p>
           <div id="tag-cloud-full" class="tag-cloud-full"></div>
+          <div class="tag-cloud-actions">
+            <button class="btn secondary" id="consolidate-tags-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+              </svg>
+              Consolidate with AI
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Consolidation Modal -->
+    <div id="tag-consolidation-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content tag-consolidation-modal-content">
+        <div class="modal-header">
+          <h2>Tag Consolidation</h2>
+          <button class="btn icon modal-close-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="consolidation-loading" class="consolidation-loading">
+            <div class="spinner"></div>
+            <p>AI is analyzing your tags...</p>
+          </div>
+          <div id="consolidation-results" class="consolidation-results hidden">
+            <p class="consolidation-hint">Review suggested merges. Uncheck any you want to keep separate.</p>
+            <div id="consolidation-suggestions"></div>
+          </div>
+          <div id="consolidation-empty" class="consolidation-empty hidden">
+            <p>No consolidation suggestions - your tags look well organized!</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary" id="consolidation-cancel-btn">Cancel</button>
+          <button class="btn primary" id="consolidation-apply-btn" disabled>Apply Selected Merges</button>
         </div>
       </div>
     </div>
