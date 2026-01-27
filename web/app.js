@@ -3100,27 +3100,16 @@ ${text}`;
       return;
     }
 
-    const status = document.getElementById('bulk-import-status');
-    const confirmBtn = document.getElementById('bulk-import-confirm-btn');
-    confirmBtn.disabled = true;
+    // Create AI job for tracking
+    const job = createAIJob(`Import ${selectedBooks.length} books`, selectedBooks.length);
+    updateAIJob(job.id, { status: 'processing' });
+
+    // Close modal immediately - import continues in background
+    this.hideBulkBookImportModal();
+    this.showToast(`Importing ${selectedBooks.length} books... Check AI Jobs for progress`, 'info');
 
     let imported = 0;
     let errors = 0;
-
-    // Show progress
-    status.innerHTML = `
-      <div class="bulk-import-progress">
-        <div class="bulk-import-progress-bar">
-          <div class="bulk-import-progress-fill" style="width: 0%"></div>
-        </div>
-        <div class="bulk-import-progress-text">0 / ${selectedBooks.length}</div>
-      </div>
-    `;
-    status.className = 'bulk-import-status info';
-    status.classList.remove('hidden');
-
-    const progressFill = status.querySelector('.bulk-import-progress-fill');
-    const progressText = status.querySelector('.bulk-import-progress-text');
 
     for (let i = 0; i < selectedBooks.length; i++) {
       const book = selectedBooks[i];
@@ -3174,30 +3163,28 @@ ${text}`;
         errors++;
       }
 
-      // Update progress
-      const percent = Math.round(((i + 1) / selectedBooks.length) * 100);
-      progressFill.style.width = `${percent}%`;
-      progressText.textContent = `${i + 1} / ${selectedBooks.length}`;
+      // Update AI job progress
+      updateAIJob(job.id, {
+        completedItems: i + 1,
+        progress: Math.round(((i + 1) / selectedBooks.length) * 100),
+      });
     }
 
-    // Show final status
-    confirmBtn.disabled = false;
-
+    // Update job status and notify user
     if (errors === 0) {
-      status.innerHTML = `Successfully imported ${imported} books!`;
-      status.className = 'bulk-import-status success';
+      updateAIJob(job.id, { status: 'completed' });
       this.showToast(`Imported ${imported} books`, 'success');
-
-      setTimeout(() => {
-        this.hideBulkBookImportModal();
-        if (this.currentView === 'books') {
-          this.loadBooks();
-        }
-      }, 1500);
     } else {
-      status.innerHTML = `Imported ${imported} books. ${errors} failed.`;
-      status.className = 'bulk-import-status error';
-      this.showToast(`Imported ${imported} books, ${errors} failed`, 'error');
+      updateAIJob(job.id, {
+        status: 'completed',
+        error: `${errors} failed`,
+      });
+      this.showToast(`Imported ${imported} books, ${errors} failed`, 'warning');
+    }
+
+    // Refresh books view if currently viewing
+    if (this.currentView === 'books') {
+      this.loadBooks();
     }
   }
 
