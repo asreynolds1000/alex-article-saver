@@ -144,6 +144,27 @@ python tts/tts.py           # Daemon mode (checks every 2 min)
 - **Theme**: `data-theme` attribute on `<html>`, persisted in localStorage as `stash-theme`.
 - **ES6 modules + inline handlers**: Since `<script type="module">` scopes variables, `app.js` must expose the app globally with `window.app = app` for inline `onclick="app.method()"` handlers to work.
 - **Centralized state**: All modules import from `lib/state.js`. The `StashApp` class uses proxy getters/setters for backwards compatibility (`get supabase() { return appState.supabase; }`).
+- **AI tier-based model selection**: Users pick capability tiers (Fast/Balanced/Quality), not specific models. Models are dynamically resolved at request time from cached API responses. Cache auto-refreshes on app init.
+
+## AI Model Tiers
+
+The AI settings use a tier-based system that dynamically resolves to the best available model:
+
+| Tier | Claude | OpenAI | Use Case |
+|------|--------|--------|----------|
+| **Fast** | Haiku | GPT-4o Mini | Quick responses, lower cost |
+| **Balanced** | Sonnet | GPT-4o | Best balance (recommended) |
+| **Quality** | Opus | o1 | Best results, slower |
+
+**How it works:**
+1. On app init, if API keys exist, models are fetched and cached in localStorage
+2. At request time, `resolveModelForTier()` picks the best matching model from cache
+3. Models are scored by version/date (newer = better)
+4. Falls back to hardcoded defaults if no cache exists
+
+**Key files:**
+- `web/lib/utils.js` - `AI_TIERS`, `resolveModelForTier()`, `scoreModel()`
+- `web/app.js` - `refreshModelCacheInBackground()`, tier UI handlers
 
 ## Edge Function Security
 
