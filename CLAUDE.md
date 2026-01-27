@@ -174,3 +174,14 @@ The `verifyAuth()` helper validates either:
 - Phase 5: Documentation updates, accessibility audit
 
 **To resume work:** See `PROGRESS.md` for detailed status and next steps.
+
+## Quick Reference
+
+Project-specific values to remember across sessions.
+
+| Item | Value |
+|------|-------|
+| **GitHub Repo** | `asreynolds1000/alex-article-saver` |
+| **Vercel Project** | `stash` (prj_xs9ANWsiSQRXfNSLMed8hLYVQ7DP) |
+| **Live URL** | https://stash.alexreynolds.com |
+| **Supabase Project** | (check dashboard for project-ref) |
