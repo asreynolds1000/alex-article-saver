@@ -1218,8 +1218,8 @@ input, select {
 }
 
 .stats-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 32px;
 }
@@ -1229,6 +1229,9 @@ input, select {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px;
+  flex: 1 1 140px;
+  min-width: 140px;
+  max-width: 200px;
 }
 
 .stat-card-value {
