@@ -4752,7 +4752,7 @@ Return ONLY the JSON array, no other text. Return empty array [] if no consolida
       if (!response.ok) throw new Error('API request failed');
       const data = await response.json();
       const text = data.content[0].text.trim();
-      return JSON.parse(text);
+      return JSON.parse(this.stripCodeFences(text));
     } else {
       response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -4770,8 +4770,15 @@ Return ONLY the JSON array, no other text. Return empty array [] if no consolida
       if (!response.ok) throw new Error('API request failed');
       const data = await response.json();
       const text = data.choices[0].message.content.trim();
-      return JSON.parse(text);
+      return JSON.parse(this.stripCodeFences(text));
     }
+  }
+
+  // Strip markdown code fences from AI responses
+  stripCodeFences(text) {
+    // Remove ```json ... ``` or ``` ... ``` wrappers
+    const match = text.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
+    return match ? match[1].trim() : text;
   }
 
   renderConsolidationSuggestions(suggestions, tagList) {
