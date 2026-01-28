@@ -11,6 +11,9 @@ let enrichingInProgress = false;
 // Track reading mode state
 let readingModeActive = false;
 
+// Track temporary reading theme (null = use app theme, 'light' or 'dark' = override)
+let readingThemeOverride = null;
+
 /**
  * Open the reading pane with a save
  * @param {Object} save - The save object to display
@@ -169,6 +172,15 @@ export function enterReadingMode() {
   const savedSize = localStorage.getItem('stash-reading-font-size') || 'medium';
   setFontSize(savedSize);
 
+  // Restore saved column width
+  const savedWidth = localStorage.getItem('stash-reading-width') || 'medium';
+  setColumnWidth(savedWidth);
+
+  // Reset theme override for new session
+  readingThemeOverride = null;
+  pane.removeAttribute('data-reading-theme');
+  updateThemeButtonIcon();
+
   // Add escape key listener
   document.addEventListener('keydown', handleReadingModeEscape);
 }
@@ -184,6 +196,11 @@ export function exitReadingMode() {
   readingModeActive = false;
   pane.classList.remove('reading-mode');
   pane.removeAttribute('data-font-size');
+  pane.removeAttribute('data-width');
+  pane.removeAttribute('data-reading-theme');
+
+  // Reset temporary theme override
+  readingThemeOverride = null;
 
   // Hide controls
   if (controls) {
@@ -221,6 +238,90 @@ export function setFontSize(size) {
 }
 
 /**
+ * Set column width for reading mode
+ * @param {string} width - 'narrow', 'medium', or 'wide'
+ */
+export function setColumnWidth(width) {
+  const pane = document.getElementById('reading-pane');
+  if (!pane) return;
+
+  // Validate width
+  if (!['narrow', 'medium', 'wide'].includes(width)) {
+    width = 'medium';
+  }
+
+  // Set data attribute
+  pane.setAttribute('data-width', width);
+
+  // Update button states
+  const buttons = document.querySelectorAll('.width-btn');
+  buttons.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.width === width);
+  });
+
+  // Save preference
+  localStorage.setItem('stash-reading-width', width);
+}
+
+/**
+ * Toggle reading theme (temporary override for this session)
+ */
+export function toggleReadingTheme() {
+  const pane = document.getElementById('reading-pane');
+  if (!pane) return;
+
+  // Get current app theme
+  const appTheme = document.documentElement.getAttribute('data-theme') || 'light';
+
+  // Cycle through: null (app theme) -> opposite -> null
+  if (readingThemeOverride === null) {
+    // Override to opposite of app theme
+    readingThemeOverride = appTheme === 'dark' ? 'light' : 'dark';
+  } else {
+    // Clear override, back to app theme
+    readingThemeOverride = null;
+  }
+
+  // Apply or remove the override
+  if (readingThemeOverride) {
+    pane.setAttribute('data-reading-theme', readingThemeOverride);
+  } else {
+    pane.removeAttribute('data-reading-theme');
+  }
+
+  updateThemeButtonIcon();
+}
+
+/**
+ * Update the theme button icon based on current effective theme
+ */
+function updateThemeButtonIcon() {
+  const themeBtn = document.getElementById('reading-mode-theme-btn');
+  if (!themeBtn) return;
+
+  const sunIcon = themeBtn.querySelector('.sun-icon');
+  const moonIcon = themeBtn.querySelector('.moon-icon');
+  if (!sunIcon || !moonIcon) return;
+
+  // Determine effective theme
+  let effectiveTheme;
+  if (readingThemeOverride) {
+    effectiveTheme = readingThemeOverride;
+  } else {
+    effectiveTheme = document.documentElement.getAttribute('data-theme') || 'light';
+  }
+
+  // Show icon for the opposite theme (clicking will switch to it)
+  if (effectiveTheme === 'dark') {
+    sunIcon.classList.remove('hidden');
+    moonIcon.classList.add('hidden');
+  } else {
+    sunIcon.classList.add('hidden');
+    moonIcon.classList.remove('hidden');
+  }
+}
+
+/**
  * Check if reading mode is active
  * @returns {boolean}
  */
@@ -244,11 +345,25 @@ export function initReadingMode() {
     closeReadingModeBtn.addEventListener('click', exitReadingMode);
   }
 
+  // Theme toggle button
+  const themeBtn = document.getElementById('reading-mode-theme-btn');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', toggleReadingTheme);
+  }
+
   // Font size buttons
   const fontSizeButtons = document.querySelectorAll('.font-size-btn');
   fontSizeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       setFontSize(btn.dataset.size);
+    });
+  });
+
+  // Width buttons
+  const widthButtons = document.querySelectorAll('.width-btn');
+  widthButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setColumnWidth(btn.dataset.width);
     });
   });
 }

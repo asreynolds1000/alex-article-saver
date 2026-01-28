@@ -1246,6 +1246,48 @@ input, select {
 .font-size-btn[data-size="medium"] { font-size: 15px; }
 .font-size-btn[data-size="large"] { font-size: 18px; }
 
+.reading-mode-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+
+.width-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+
+.width-btn {
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.width-btn:hover {
+  color: var(--text);
+}
+
+.width-btn.active {
+  background: var(--bg);
+  color: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+#reading-mode-theme-btn .hidden {
+  display: none;
+}
+
 /* Reading Mode Active State */
 .reading-pane.reading-mode {
   position: fixed;
@@ -1313,6 +1355,74 @@ input, select {
   line-height: 2;
 }
 
+/* Column width variations */
+.reading-pane.reading-mode[data-width="narrow"] .reading-content {
+  max-width: 520px;
+}
+.reading-pane.reading-mode[data-width="medium"] .reading-content {
+  max-width: 680px;
+}
+.reading-pane.reading-mode[data-width="wide"] .reading-content {
+  max-width: 900px;
+}
+
+/* Reading mode theme overrides (temporary, session-only) */
+.reading-pane.reading-mode[data-reading-theme="light"] {
+  background: #ffffff;
+  color: #1a1a2e;
+}
+.reading-pane.reading-mode[data-reading-theme="light"] .reading-content {
+  background: #ffffff;
+}
+.reading-pane.reading-mode[data-reading-theme="light"] #reading-title,
+.reading-pane.reading-mode[data-reading-theme="light"] .reading-body {
+  color: #1a1a2e;
+}
+.reading-pane.reading-mode[data-reading-theme="light"] .reading-meta {
+  color: #6b7280;
+}
+.reading-pane.reading-mode[data-reading-theme="light"] .reading-body a {
+  color: #6366f1;
+}
+.reading-pane.reading-mode[data-reading-theme="light"] .reading-body blockquote {
+  color: #4b5563;
+  border-left-color: #6366f1;
+}
+.reading-pane.reading-mode[data-reading-theme="light"] .reading-body code {
+  background: #f3f4f6;
+}
+.reading-pane.reading-mode[data-reading-theme="light"] .reading-body pre {
+  background: #f3f4f6;
+}
+
+.reading-pane.reading-mode[data-reading-theme="dark"] {
+  background: #1a1a2e;
+  color: #e5e5e5;
+}
+.reading-pane.reading-mode[data-reading-theme="dark"] .reading-content {
+  background: #1a1a2e;
+}
+.reading-pane.reading-mode[data-reading-theme="dark"] #reading-title,
+.reading-pane.reading-mode[data-reading-theme="dark"] .reading-body {
+  color: #e5e5e5;
+}
+.reading-pane.reading-mode[data-reading-theme="dark"] .reading-meta {
+  color: #9ca3af;
+}
+.reading-pane.reading-mode[data-reading-theme="dark"] .reading-body a {
+  color: #818cf8;
+}
+.reading-pane.reading-mode[data-reading-theme="dark"] .reading-body blockquote {
+  color: #9ca3af;
+  border-left-color: #818cf8;
+}
+.reading-pane.reading-mode[data-reading-theme="dark"] .reading-body code {
+  background: #2d2d44;
+}
+.reading-pane.reading-mode[data-reading-theme="dark"] .reading-body pre {
+  background: #2d2d44;
+}
+
 /* Hide AI-generated content in reading mode */
 .reading-pane.reading-mode .prettify-btn,
 .reading-pane.reading-mode .article-key-points,
@@ -1324,14 +1434,26 @@ input, select {
 /* Mobile reading mode adjustments */
 @media (max-width: 768px) {
   .reading-mode-controls {
-    top: 16px;
-    right: 16px;
-    padding: 6px 10px;
-    gap: 12px;
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    padding: 8px 12px;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .reading-mode-divider {
+    height: 20px;
+  }
+
+  /* Hide width toggle on mobile - full width is always used */
+  .width-toggle {
+    display: none;
   }
 
   .reading-pane.reading-mode .reading-content {
     padding: 70px 20px 40px;
+    max-width: 100%;
   }
 
   .reading-pane.reading-mode #reading-title {

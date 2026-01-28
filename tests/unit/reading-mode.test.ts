@@ -3,17 +3,28 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // Mock DOM elements
 function createMockDOM() {
   document.body.innerHTML = `
+    <html data-theme="light">
     <div id="reading-pane" class="reading-pane">
       <div id="reading-mode-controls" class="reading-mode-controls hidden">
         <button id="close-reading-mode-btn"></button>
+        <button id="reading-mode-theme-btn">
+          <svg class="sun-icon"></svg>
+          <svg class="moon-icon hidden"></svg>
+        </button>
         <div class="font-size-toggle">
           <button class="font-size-btn" data-size="small">A</button>
           <button class="font-size-btn active" data-size="medium">A</button>
           <button class="font-size-btn" data-size="large">A</button>
         </div>
+        <div class="width-toggle">
+          <button class="width-btn" data-width="narrow"></button>
+          <button class="width-btn active" data-width="medium"></button>
+          <button class="width-btn" data-width="wide"></button>
+        </div>
       </div>
     </div>
     <button id="reading-mode-btn"></button>
+    </html>
   `;
 }
 
@@ -44,6 +55,8 @@ import {
   enterReadingMode,
   exitReadingMode,
   setFontSize,
+  setColumnWidth,
+  toggleReadingTheme,
   isReadingModeActive,
   initReadingMode,
 } from '../../web/ui/reading-pane.js';
@@ -154,6 +167,96 @@ describe('Reading Mode', () => {
     });
   });
 
+  describe('setColumnWidth', () => {
+    beforeEach(() => {
+      enterReadingMode();
+    });
+
+    afterEach(() => {
+      exitReadingMode();
+    });
+
+    it('should set data-width attribute to narrow', () => {
+      setColumnWidth('narrow');
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-width')).toBe('narrow');
+    });
+
+    it('should set data-width attribute to medium', () => {
+      setColumnWidth('medium');
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-width')).toBe('medium');
+    });
+
+    it('should set data-width attribute to wide', () => {
+      setColumnWidth('wide');
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-width')).toBe('wide');
+    });
+
+    it('should save width to localStorage', () => {
+      setColumnWidth('wide');
+      expect(localStorageMock.getItem('stash-reading-width')).toBe('wide');
+    });
+
+    it('should update active class on width buttons', () => {
+      setColumnWidth('wide');
+
+      const narrowBtn = document.querySelector('.width-btn[data-width="narrow"]');
+      const mediumBtn = document.querySelector('.width-btn[data-width="medium"]');
+      const wideBtn = document.querySelector('.width-btn[data-width="wide"]');
+
+      expect(narrowBtn?.classList.contains('active')).toBe(false);
+      expect(mediumBtn?.classList.contains('active')).toBe(false);
+      expect(wideBtn?.classList.contains('active')).toBe(true);
+    });
+
+    it('should default to medium for invalid width', () => {
+      // @ts-expect-error Testing invalid input
+      setColumnWidth('invalid');
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-width')).toBe('medium');
+    });
+  });
+
+  describe('toggleReadingTheme', () => {
+    beforeEach(() => {
+      enterReadingMode();
+    });
+
+    afterEach(() => {
+      exitReadingMode();
+    });
+
+    it('should set dark theme when app is in light mode', () => {
+      document.documentElement.setAttribute('data-theme', 'light');
+
+      toggleReadingTheme();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-reading-theme')).toBe('dark');
+    });
+
+    it('should set light theme when app is in dark mode', () => {
+      document.documentElement.setAttribute('data-theme', 'dark');
+
+      toggleReadingTheme();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-reading-theme')).toBe('light');
+    });
+
+    it('should clear theme override when toggled again', () => {
+      document.documentElement.setAttribute('data-theme', 'light');
+
+      toggleReadingTheme(); // Set to dark
+      toggleReadingTheme(); // Clear override
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.hasAttribute('data-reading-theme')).toBe(false);
+    });
+  });
+
   describe('isReadingModeActive', () => {
     it('should return false initially', () => {
       expect(isReadingModeActive()).toBe(false);
@@ -181,11 +284,28 @@ describe('Reading Mode', () => {
       expect(pane?.getAttribute('data-font-size')).toBe('large');
     });
 
+    it('should restore saved width from localStorage', () => {
+      localStorageMock.setItem('stash-reading-width', 'wide');
+
+      enterReadingMode();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-width')).toBe('wide');
+    });
+
     it('should default to medium if no saved preference', () => {
       enterReadingMode();
 
       const pane = document.getElementById('reading-pane');
       expect(pane?.getAttribute('data-font-size')).toBe('medium');
+      expect(pane?.getAttribute('data-width')).toBe('medium');
+    });
+
+    it('should reset theme override on enter', () => {
+      enterReadingMode();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.hasAttribute('data-reading-theme')).toBe(false);
     });
   });
 
@@ -198,6 +318,26 @@ describe('Reading Mode', () => {
 
       const pane = document.getElementById('reading-pane');
       expect(pane?.hasAttribute('data-font-size')).toBe(false);
+    });
+
+    it('should remove data-width attribute', () => {
+      enterReadingMode();
+      setColumnWidth('wide');
+
+      exitReadingMode();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.hasAttribute('data-width')).toBe(false);
+    });
+
+    it('should remove data-reading-theme attribute', () => {
+      enterReadingMode();
+      toggleReadingTheme();
+
+      exitReadingMode();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.hasAttribute('data-reading-theme')).toBe(false);
     });
   });
 
@@ -230,6 +370,29 @@ describe('Reading Mode', () => {
 
       const pane = document.getElementById('reading-pane');
       expect(pane?.getAttribute('data-font-size')).toBe('large');
+    });
+
+    it('should bind click handlers to width buttons', () => {
+      enterReadingMode();
+      initReadingMode();
+
+      const wideBtn = document.querySelector('.width-btn[data-width="wide"]') as HTMLButtonElement;
+      wideBtn?.click();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-width')).toBe('wide');
+    });
+
+    it('should bind click handler to theme toggle button', () => {
+      document.documentElement.setAttribute('data-theme', 'light');
+      enterReadingMode();
+      initReadingMode();
+
+      const themeBtn = document.getElementById('reading-mode-theme-btn');
+      themeBtn?.click();
+
+      const pane = document.getElementById('reading-pane');
+      expect(pane?.getAttribute('data-reading-theme')).toBe('dark');
     });
   });
 });
