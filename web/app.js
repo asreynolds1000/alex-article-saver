@@ -1188,6 +1188,7 @@ class StashApp {
     // Handle audio player visibility
     const audioPlayer = document.getElementById('audio-player');
     const audioGenerating = document.getElementById('audio-generating');
+    const audioEnabled = localStorage.getItem('stash-audio-enabled') === 'true';
 
     if (save.audio_url) {
       // Audio is ready - show player
@@ -1198,12 +1199,12 @@ class StashApp {
       // Podcasts and books don't need TTS audio
       audioPlayer.classList.add('hidden');
       audioGenerating.classList.add('hidden');
-    } else if (save.content && save.content.length > 100 && !save.highlight) {
-      // Content exists but no audio yet - show generating indicator
+    } else if (audioEnabled && save.content && save.content.length > 100 && !save.highlight) {
+      // Content exists but no audio yet - show generating indicator (only if audio enabled)
       audioPlayer.classList.add('hidden');
       audioGenerating.classList.remove('hidden');
     } else {
-      // No audio applicable (highlights, short content)
+      // No audio applicable (highlights, short content, or audio disabled)
       audioPlayer.classList.add('hidden');
       audioGenerating.classList.add('hidden');
     }
@@ -2118,6 +2119,7 @@ class StashApp {
     // Load all settings
     this.loadAISettings();
     this.loadDigestPreferences();
+    this.loadAudioSettings();
 
     // Set dark mode checkbox to match current theme
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -2151,6 +2153,9 @@ class StashApp {
   async saveAllSettings() {
     // Save AI settings
     this.saveAISettings();
+
+    // Save audio settings
+    this.saveAudioSettings();
 
     // Save digest settings
     await this.saveDigestPreferences();
@@ -2635,6 +2640,23 @@ class StashApp {
         status.textContent = `✗ ${message}`;
         status.className = 'api-key-status error';
         break;
+    }
+  }
+
+  // ==================== Audio Settings Methods ====================
+
+  loadAudioSettings() {
+    const audioEnabled = localStorage.getItem('stash-audio-enabled') === 'true';
+    const checkbox = document.getElementById('audio-enabled');
+    if (checkbox) {
+      checkbox.checked = audioEnabled;
+    }
+  }
+
+  saveAudioSettings() {
+    const checkbox = document.getElementById('audio-enabled');
+    if (checkbox) {
+      localStorage.setItem('stash-audio-enabled', checkbox.checked.toString());
     }
   }
 

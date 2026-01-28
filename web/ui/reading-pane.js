@@ -136,6 +136,9 @@ function handleAudioVisibility(save) {
 
   if (!audioPlayer || !audioGenerating) return;
 
+  // Check if audio generation is enabled in settings
+  const audioEnabled = localStorage.getItem('stash-audio-enabled') === 'true';
+
   if (save.audio_url) {
     // Audio is ready - show player
     audioPlayer.classList.remove('hidden');
@@ -145,12 +148,12 @@ function handleAudioVisibility(save) {
     // Podcasts and books don't need TTS audio
     audioPlayer.classList.add('hidden');
     audioGenerating.classList.add('hidden');
-  } else if (save.content && save.content.length > 100 && !save.highlight) {
-    // Content exists but no audio yet - show generating indicator
+  } else if (audioEnabled && save.content && save.content.length > 100 && !save.highlight) {
+    // Content exists but no audio yet - show generating indicator (only if audio enabled)
     audioPlayer.classList.add('hidden');
     audioGenerating.classList.remove('hidden');
   } else {
-    // No audio applicable (highlights, short content)
+    // No audio applicable (highlights, short content, or audio disabled)
     audioPlayer.classList.add('hidden');
     audioGenerating.classList.add('hidden');
   }
