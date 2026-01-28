@@ -8,6 +8,9 @@ import { stopAudio, initAudio } from '../services/audio.js';
 // Track if AI enrichment is in progress
 let enrichingInProgress = false;
 
+// Track reading mode state
+let readingModeActive = false;
+
 /**
  * Open the reading pane with a save
  * @param {Object} save - The save object to display
@@ -76,6 +79,11 @@ export function closeReadingPane() {
   const pane = document.getElementById('reading-pane');
   if (!pane) return;
 
+  // Exit reading mode if active
+  if (readingModeActive) {
+    exitReadingMode();
+  }
+
   pane.classList.remove('open');
   stopAudio();
 
@@ -126,6 +134,132 @@ export function isOpen() {
  */
 export function getCurrentSave() {
   return appState.currentSave;
+}
+
+// ==================== Reading Mode ====================
+
+/**
+ * Toggle reading mode on/off
+ */
+export function toggleReadingMode() {
+  if (readingModeActive) {
+    exitReadingMode();
+  } else {
+    enterReadingMode();
+  }
+}
+
+/**
+ * Enter reading mode
+ */
+export function enterReadingMode() {
+  const pane = document.getElementById('reading-pane');
+  const controls = document.getElementById('reading-mode-controls');
+  if (!pane) return;
+
+  readingModeActive = true;
+  pane.classList.add('reading-mode');
+
+  // Show controls
+  if (controls) {
+    controls.classList.remove('hidden');
+  }
+
+  // Restore saved font size
+  const savedSize = localStorage.getItem('stash-reading-font-size') || 'medium';
+  setFontSize(savedSize);
+
+  // Add escape key listener
+  document.addEventListener('keydown', handleReadingModeEscape);
+}
+
+/**
+ * Exit reading mode
+ */
+export function exitReadingMode() {
+  const pane = document.getElementById('reading-pane');
+  const controls = document.getElementById('reading-mode-controls');
+  if (!pane) return;
+
+  readingModeActive = false;
+  pane.classList.remove('reading-mode');
+  pane.removeAttribute('data-font-size');
+
+  // Hide controls
+  if (controls) {
+    controls.classList.add('hidden');
+  }
+
+  // Remove escape key listener
+  document.removeEventListener('keydown', handleReadingModeEscape);
+}
+
+/**
+ * Set font size for reading mode
+ * @param {string} size - 'small', 'medium', or 'large'
+ */
+export function setFontSize(size) {
+  const pane = document.getElementById('reading-pane');
+  if (!pane) return;
+
+  // Validate size
+  if (!['small', 'medium', 'large'].includes(size)) {
+    size = 'medium';
+  }
+
+  // Set data attribute
+  pane.setAttribute('data-font-size', size);
+
+  // Update button states
+  const buttons = document.querySelectorAll('.font-size-btn');
+  buttons.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.size === size);
+  });
+
+  // Save preference
+  localStorage.setItem('stash-reading-font-size', size);
+}
+
+/**
+ * Check if reading mode is active
+ * @returns {boolean}
+ */
+export function isReadingModeActive() {
+  return readingModeActive;
+}
+
+/**
+ * Initialize reading mode event listeners
+ */
+export function initReadingMode() {
+  // Reading mode button
+  const readingModeBtn = document.getElementById('reading-mode-btn');
+  if (readingModeBtn) {
+    readingModeBtn.addEventListener('click', toggleReadingMode);
+  }
+
+  // Close reading mode button
+  const closeReadingModeBtn = document.getElementById('close-reading-mode-btn');
+  if (closeReadingModeBtn) {
+    closeReadingModeBtn.addEventListener('click', exitReadingMode);
+  }
+
+  // Font size buttons
+  const fontSizeButtons = document.querySelectorAll('.font-size-btn');
+  fontSizeButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setFontSize(btn.dataset.size);
+    });
+  });
+}
+
+/**
+ * Handle escape key to exit reading mode
+ */
+function handleReadingModeEscape(e) {
+  if (e.key === 'Escape' && readingModeActive) {
+    exitReadingMode();
+  }
 }
 
 // ==================== Private Helpers ====================

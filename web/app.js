@@ -116,6 +116,7 @@ import {
   getCurrentSave,
   setEnrichingInProgress,
   refreshSaveTags,
+  initReadingMode,
 } from './ui/reading-pane.js';
 
 import {
@@ -310,6 +311,9 @@ class StashApp {
     document.getElementById('close-reading-btn').addEventListener('click', () => {
       this.closeReadingPane();
     });
+
+    // Initialize reading mode
+    initReadingMode();
 
     document.getElementById('archive-btn').addEventListener('click', () => {
       this.toggleArchive();
