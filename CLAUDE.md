@@ -194,6 +194,12 @@ The `verifyAuth()` helper validates either:
 
 ## Recent Features (Jan 2026)
 
+- **Reading Mode**: Distraction-free fullscreen reading with controls for:
+  - Font size (Small/Medium/Large) - persists to localStorage
+  - Column width (Narrow/Medium/Wide) - persists to localStorage
+  - Temporary theme toggle (light/dark) - resets when exiting
+  - Hides AI-generated key points, audio player, progress bar, tags
+  - Enter via book icon in reading pane header, exit via X or Escape
 - **Bulk book import**: Paste a list of books, AI parses titles/authors/years, Google Books matches metadata, batch import with progress tracking
 - **Auto-enrich on bulk import**: Checkbox to automatically run AI enrichment (Fast tier) after importing books
 - **AI enrich button state**: Shows "Enriching..." with spinner during processing, disables button
@@ -214,6 +220,7 @@ The `verifyAuth()` helper validates either:
 - **Bulk import flow**: Modal closes immediately on import, AI job tracks progress in background, user can check AI Jobs panel
 - **AI enrichment UI state**: Use `setEnrichingInProgress()` from `reading-pane.js` to update button state during enrichment
 - **Reading pane tags**: Call `refreshSaveTags()` after modifying tags to update the reading pane display
+- **Reading mode**: Uses `initReadingMode()` from `reading-pane.js` - must be called in `bindEvents()`. Theme toggle is temporary (per-session), font size and width persist to localStorage
 
 ## Audit Findings (Jan 2026)
 
